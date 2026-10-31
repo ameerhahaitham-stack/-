@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "NOTE": "This file is hashed by 'lock-protocol'. Edit ONLY before locking. The cost numbers below are PLACEHOLDER ASSUMPTIONS and must be replaced with your broker's real commission/slippage before locking.",
+  "splits": {
+    "dev":   {"start": "2018-01-01", "end": "2022-12-31"},
+    "valid": {"start": "2023-01-01", "end": "2024-12-31"},
+    "hold":  {"start": "2025-01-01", "end": null}
+  },
+  "timeframe_priority": ["D1", "H4"],
+  "timeframes_secondary": ["H1", "M15"],
+  "risk": {
+    "base_risk_pct": 0.5,
+    "risk_grid_pct": [0.25, 0.5, 0.75, 1.0],
+    "rr_grid": [1.0, 1.5, 2.0, 2.5, 3.0],
+    "start_equity": 10000,
+    "max_leverage": null,
+    "daily_loss_limit_pct": null,
+    "weekly_loss_limit_pct": null
+  },
+  "costs": {
+    "symbols": {
+      "XAUUSD": {"commission_usd_per_lot_rt": 7.0, "slippage_in_px": 0.05, "slippage_out_px": 0.10, "spread_floor_px": 0.10, "fallback_spread_px": 0.30},
+      "EURUSD": {"commission_usd_per_lot_rt": 7.0, "slippage_in_px": 0.00001, "slippage_out_px": 0.00002, "spread_floor_px": 0.00005, "fallback_spread_px": 0.00012}
+    },
+    "scenarios": {
+      "optimistic":  {"spread_mult": 0.7, "commission_mult": 0.5, "slip_mult": 0.0},
+      "base":        {"spread_mult": 1.0, "commission_mult": 1.0, "slip_mult": 1.0},
+      "pessimistic": {"spread_mult": 1.5, "commission_mult": 1.5, "slip_mult": 2.0},
+      "stress":      {"spread_mult": 2.0, "commission_mult": 2.0, "slip_mult": 3.0}
+    }
+  },
+  "criteria": {
+    "dev_screen": {"min_trades": 30, "min_expectancy_R_net": 0.0},
+    "valid": {
+      "min_trades": 50,
+      "min_expectancy_R_net": 0.10,
+      "min_profit_factor_net": 1.20,
+      "expectancy_ex_top5_positive": true,
+      "max_adjusted_p": 0.10,
+      "max_p_vs_control": 0.10,
+      "pessimistic_expectancy_min": 0.0,
+      "stress_profit_factor_min": 1.0,
+      "min_positive_years_share": 0.5
+    },
+    "hold": {"min_trades": 30, "min_expectancy_R_net": 0.10, "min_profit_factor_net": 1.20}
+  },
+  "multiple_testing": {"method": "holm", "alpha": 0.10, "family": "all_logged_dev_and_valid_trials"},
+  "bootstrap": {"n": 5000, "cluster": "month", "seed": 12345},
+  "control": {"n_reps": 500, "seed": 777},
+  "lookahead_check": {"n_checks": 5, "seed": 99}
+}
