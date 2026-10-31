@@ -1,0 +1,14 @@
+{
+  "symbols": ["XAUUSD", "EURUSD"],
+  "timeframes": ["D1", "H4", "H1", "M15"],
+  "data_quality": {
+    "max_bar_move_pct": {"XAUUSD": 8.0, "EURUSD": 3.0},
+    "zero_range_warn_share": 0.01,
+    "unexpected_missing_warn": 0.0005,
+    "unexpected_missing_fail": 0.005,
+    "crosstf_mismatch_warn": 0.002,
+    "crosstf_mismatch_fail": 0.02,
+    "zero_spread_warn_share": 0.5,
+    "min_start": "2018-01-31"
+  }
+}

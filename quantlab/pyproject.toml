@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantlab"
+version = "0.1.0"
+description = "AI quantitative trading research lab (XAUUSD / EURUSD) - reproducible, pre-registered, hold-out protected"
+requires-python = ">=3.10"
+dependencies = ["pandas", "numpy", "scipy", "matplotlib", "mplfinance", "scikit-learn", "statsmodels", "streamlit", "plotly", "pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
