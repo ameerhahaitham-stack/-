@@ -45,8 +45,16 @@ def cmd_ingest(a) -> int:
             (root() / "data" / "specs" / f"{sym}.json").write_text(json.dumps(_specs_from_csv(sp, sym), indent=2), encoding="utf-8")
         for tf in TFS:
             p = folder / f"{prefix}{sym}_{tf}.csv"
+            if not p.exists():                       # MT5 'Export Bars' names: XAUUSD_Daily_<from>_<to>.csv
+                alias = "Daily" if tf == "D1" else tf
+                hits = sorted(folder.glob(f"{sym}_{alias}_*.csv"))
+                if len(hits) == 1:
+                    p = hits[0]
+                elif len(hits) > 1:
+                    print(f"  ambiguous for {sym} {tf}: {[h.name for h in hits]}")
+                    continue
             if not p.exists():
-                print(f"  missing: {p.name}")
+                print(f"  missing: {sym} {tf}")
                 continue
             r = ingest(p, sym, tf, source="synthetic test data" if a.synthetic else "MT5 export", broker=broker, tz_note=tz, synthetic=a.synthetic)
             found += 1
@@ -89,8 +97,41 @@ def cmd_validate(a) -> int:
     return 0
 
 
+def cmd_calc_check(a) -> int:
+    """Import QL_calc_check.csv (OrderCalcProfit result) and mark the specs as verified."""
+    df = pd.read_csv(a.file)
+    for r in df.itertuples():
+        p = root() / "data" / "specs" / f"{r.symbol}.json"
+        sp = json.loads(p.read_text(encoding="utf-8"))
+        old = sp["value_per_px_per_lot"]
+        sp.update(value_per_px_per_lot=float(r.value_per_px_per_lot), verified=True, tick_basis_conflict=False,
+                  verified_by="OrderCalcProfit", verified_value_per_px_per_lot=float(r.value_per_px_per_lot), previous_assumed=old)
+        p.write_text(json.dumps(sp, indent=2), encoding="utf-8")
+        print(f"{r.symbol}: value per 1.00 price move per lot = {r.value_per_px_per_lot} (was assumed {old})")
+    return 0
+
+
+def cmd_audit_hold(a) -> int:
+    from .holdguard import audit
+    res = audit()
+    for r in res:
+        print(f"[{r['status']}] {r['check']}: {r['detail']}")
+    return 1 if any(r["status"] == "FAIL" for r in res) else 0
+
+
 def cmd_lock(a) -> int:
-    info = registry.lock_protocol(a.note or "")
+    unverified = []
+    for sym in load_config()["symbols"]:
+        sp = root() / "data" / "specs" / f"{sym}.json"
+        spec = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else {}
+        if not spec.get("verified"):
+            unverified.append(sym)
+    if unverified and not a.allow_unverified_specs:
+        print(f"REFUSED: symbol specs not verified with OrderCalcProfit for {unverified}. Run QuantLab_CalcCheck.mq5 and "
+              "'python -m quantlab.cli calc-check --file <QL_calc_check.csv>', or lock explicitly with --allow-unverified-specs.")
+        return 2
+    note = (a.note or "") + (f" | UNVERIFIED SPECS ACCEPTED: {unverified}" if unverified else "")
+    info = registry.lock_protocol(note)
     print("protocol locked:", info)
     return 0
 
@@ -116,7 +157,9 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("ingest"); s.add_argument("--folder"); s.add_argument("--synthetic", action="store_true"); s.set_defaults(fn=cmd_ingest)
     s = sub.add_parser("validate"); s.set_defaults(fn=cmd_validate)
-    s = sub.add_parser("lock-protocol"); s.add_argument("--note"); s.set_defaults(fn=cmd_lock)
+    s = sub.add_parser("lock-protocol"); s.add_argument("--note"); s.add_argument("--allow-unverified-specs", action="store_true"); s.set_defaults(fn=cmd_lock)
+    s = sub.add_parser("calc-check"); s.add_argument("--file", required=True); s.set_defaults(fn=cmd_calc_check)
+    s = sub.add_parser("audit-hold"); s.set_defaults(fn=cmd_audit_hold)
     s = sub.add_parser("status"); s.set_defaults(fn=cmd_status)
     s = sub.add_parser("synth"); s.add_argument("--out", required=True); s.add_argument("--start", default="2018-01-01"); s.add_argument("--end", default="2025-06-30"); s.set_defaults(fn=cmd_synth)
     a = ap.parse_args(argv)
