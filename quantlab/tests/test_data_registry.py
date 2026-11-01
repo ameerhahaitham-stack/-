@@ -172,3 +172,27 @@ def test_synthetic_data_refused_as_research_without_override(lab, monkeypatch):
     monkeypatch.delenv("QUANTLAB_ALLOW_SYNTH")
     with pytest.raises(registry.RegistryError):
         registry.log_trial("H5", "EURUSD", "D1", "dev", {}, {}, "synthetic", synthetic=True)
+
+
+# ----------------------------------------------------------------- MT5 'Export Bars' (tab) format
+def test_reads_mt5_export_bars_tab_format_with_and_without_time(tmp_path):
+    intra = tmp_path / "XAUUSD_H1_x.csv"
+    intra.write_text("<DATE>\t<TIME>\t<OPEN>\t<HIGH>\t<LOW>\t<CLOSE>\t<TICKVOL>\t<VOL>\t<SPREAD>\r\n"
+                     "2018.01.02\t09:00:00\t1309.81\t1310.17\t1308.62\t1309.28\t6186\t2538457\t36\r\n"
+                     "2018.01.02\t10:00:00\t1309.28\t1310.73\t1308.40\t1310.12\t7079\t0\t30\r\n")
+    d = data.read_mt5_csv(intra)
+    assert d.time.tolist() == [pd.Timestamp("2018-01-02 09:00"), pd.Timestamp("2018-01-02 10:00")]
+    assert d.spread.tolist() == [36, 30] and d.tick_volume.tolist() == [6186, 7079] and d.close.iloc[0] == 1309.28
+    daily = tmp_path / "XAUUSD_Daily_x.csv"
+    daily.write_text("<DATE>\t<OPEN>\t<HIGH>\t<LOW>\t<CLOSE>\t<TICKVOL>\t<VOL>\t<SPREAD>\r\n2018.01.02\t1309.81\t1318.80\t1308.40\t1317.82\t102756\t40861963\t29\r\n")
+    assert data.read_mt5_csv(daily).time.iloc[0] == pd.Timestamp("2018-01-02")
+
+
+def test_good_friday_and_us_holiday_closures_are_not_called_defects(lab):
+    days = pd.bdate_range("2019-04-01", "2019-04-30")
+    d1 = pd.DataFrame({"time": days, "open": 1300.0, "high": 1310.0, "low": 1290.0, "close": 1305.0, "tick_volume": 10, "spread": 5, "real_volume": 0})
+    d1 = d1[d1.time != "2019-04-19"].reset_index(drop=True)          # Good Friday 2019
+    g = data._gap_analysis(d1.time, "D1")
+    assert g["unexpected_missing_bars"] == 0
+    d1b = d1[d1.time != "2019-04-10"].reset_index(drop=True)        # an ordinary Wednesday missing = real defect
+    assert data._gap_analysis(d1b.time, "D1")["unexpected_missing_bars"] == 1

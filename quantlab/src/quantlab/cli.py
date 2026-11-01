@@ -45,8 +45,16 @@ def cmd_ingest(a) -> int:
             (root() / "data" / "specs" / f"{sym}.json").write_text(json.dumps(_specs_from_csv(sp, sym), indent=2), encoding="utf-8")
         for tf in TFS:
             p = folder / f"{prefix}{sym}_{tf}.csv"
+            if not p.exists():                       # MT5 'Export Bars' names: XAUUSD_Daily_<from>_<to>.csv
+                alias = "Daily" if tf == "D1" else tf
+                hits = sorted(folder.glob(f"{sym}_{alias}_*.csv"))
+                if len(hits) == 1:
+                    p = hits[0]
+                elif len(hits) > 1:
+                    print(f"  ambiguous for {sym} {tf}: {[h.name for h in hits]}")
+                    continue
             if not p.exists():
-                print(f"  missing: {p.name}")
+                print(f"  missing: {sym} {tf}")
                 continue
             r = ingest(p, sym, tf, source="synthetic test data" if a.synthetic else "MT5 export", broker=broker, tz_note=tz, synthetic=a.synthetic)
             found += 1
