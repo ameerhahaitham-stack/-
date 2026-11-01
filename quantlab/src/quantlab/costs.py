@@ -58,6 +58,12 @@ def build_scenarios(symbol: str, specs: dict, params: dict) -> dict[str, CostMod
     base = params["costs"]["symbols"][symbol]
     out = {}
     for name, m in params["costs"]["scenarios"].items():
+        vmult = 1.0
+        if "value_mult_if_unverified" in m:
+            # only for symbols whose tick value contradicts the contract size and that were not verified with OrderCalcProfit
+            if not (specs.get("tick_basis_conflict") and not specs.get("verified")):
+                continue
+            vmult = m["value_mult_if_unverified"]
         out[name] = CostModel(
             name=name, spread_mode="measured", spread_mult=m["spread_mult"],
             spread_floor_px=base["spread_floor_px"],
@@ -65,7 +71,7 @@ def build_scenarios(symbol: str, specs: dict, params: dict) -> dict[str, CostMod
             slippage_in_px=base["slippage_in_px"] * m["slip_mult"], slippage_out_px=base["slippage_out_px"] * m["slip_mult"],
             swap_long_pts=specs.get("swap_long", 0.0) if specs.get("swap_mode_points") else 0.0,
             swap_short_pts=specs.get("swap_short", 0.0) if specs.get("swap_mode_points") else 0.0,
-            point=specs["point"], value_per_px_per_lot=specs["value_per_px_per_lot"])
+            point=specs["point"], value_per_px_per_lot=specs["value_per_px_per_lot"] * vmult)
     return out
 
 

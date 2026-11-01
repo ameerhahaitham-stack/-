@@ -65,3 +65,15 @@ def apply_sizing(trades: pd.DataFrame, specs_by_symbol: dict, risk_pct: float = 
                    "risk_pct_real_p50": float(o["risk_pct_real"].median()), "risk_pct_real_max": float(o["risk_pct_real"].max())}
         return o, summary
     return out, {"rejected": rej, "final_equity": start_equity, "max_dd_pct": 0.0}
+
+
+def real_risk_under_truth(equity: float, risk_pct: float, stop_px: float, assumed_vpp: float, true_vpp: float,
+                          vmin: float = 0.01, step: float = 0.01) -> dict:
+    """If lots are sized with an ASSUMED value per price unit but the terminal uses the TRUE one, what is the real risk?
+    Used to audit the XAUUSD tick-value contradiction (assumed 100 vs possible 10)."""
+    import math
+    lots = math.floor((equity * risk_pct / 100) / (stop_px * assumed_vpp) / step + 1e-9) * step
+    if lots < vmin - 1e-12:
+        return {"lots": 0.0, "real_risk_usd": 0.0, "real_risk_pct": 0.0, "rejected_below_min_lot": True}
+    usd = lots * true_vpp * stop_px
+    return {"lots": round(lots, 4), "real_risk_usd": usd, "real_risk_pct": usd / equity * 100, "rejected_below_min_lot": False}

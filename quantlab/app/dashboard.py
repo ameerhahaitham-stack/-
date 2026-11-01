@@ -9,7 +9,7 @@ import streamlit as st
 from quantlab import registry
 from quantlab.charts import candlestick, trade_charts
 from quantlab.config import root
-from quantlab.data import load_manifest, load_with_context
+from quantlab.data import load_with_context, manifest_summary
 from quantlab.replay import Replay
 
 st.set_page_config(page_title="QuantLab", layout="wide")
@@ -19,7 +19,7 @@ st.sidebar.caption("HOLD مختوم ولا تفتحه هذه الواجهة.")
 
 
 def manifest_keys():
-    return sorted(load_manifest().keys())
+    return sorted(manifest_summary().keys())
 
 
 def load_visible(key: str, stage: str) -> pd.DataFrame:
@@ -36,16 +36,16 @@ if page == "نظرة عامة":
     c1.metric("البروتوكول", "مقفل ✔" if ls.get("locked") and ls.get("intact") else ("معدَّل ✖" if ls.get("locked") else "غير مقفل"))
     c2.metric("سلامة السجل", "سليم" if ok else "مكسور")
     c3.metric("تجارب DEV+VALID", registry.trial_count(("dev", "valid")))
-    m = load_manifest()
+    m = manifest_summary()
     if m:
         st.subheader("البيانات المستوردة")
         rows = [{"ملف": k, "المصدر": v["source"], "تجريبي(synthetic)": v["synthetic"], "فحص خام": v["raw_status"], "بعد التنظيف": v["clean_status"],
-                 "DEV": v["splits"]["dev"]["rows"], "VALID": v["splits"]["valid"]["rows"], "HOLD (مختوم)": v["splits"]["hold"]["rows"]} for k, v in m.items()]
+                 "DEV": v["rows"]["dev"], "VALID": v["rows"]["valid"], "HOLD (مختوم)": v["rows"]["hold"]} for k, v in m.items()]
         st.dataframe(pd.DataFrame(rows), width="stretch")
         if any(v["synthetic"] for v in m.values()):
             st.warning("بيانات تجريبية صناعية: لاختبار الكود فقط وليست دليلاً بحثياً.")
     else:
-        st.info("لا بيانات بعد. ضع ملفات التصدير في data/incoming ثم شغّل: python -m quantlab.cli ingest")
+        st.info("لا بيانات بعد. ضع ملفات التصدير في مجلد الاستيراد ثم شغّل: python -m quantlab.cli ingest")
 
 elif page == "جودة البيانات":
     st.title("جودة البيانات")

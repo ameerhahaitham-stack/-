@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -309,6 +310,16 @@ def load_manifest() -> dict:
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
+def manifest_summary() -> dict:
+    """What the UI may show: names, status and row counts only - never file paths, hashes or sealed content."""
+    out = {}
+    for k, v in load_manifest().items():
+        out[k] = {"symbol": v["symbol"], "tf": v["tf"], "source": v["source"], "synthetic": v["synthetic"],
+                  "raw_status": v["raw_status"], "clean_status": v["clean_status"],
+                  "rows": {n: v["splits"][n]["rows"] for n in ("dev", "valid", "hold")}}
+    return out
+
+
 def _split_bounds(params: dict) -> dict:
     s = params["splits"]
     return {
@@ -332,7 +343,11 @@ def ingest(path, symbol: str, tf: str, source: str, broker: str = "", tz_note: s
         part = cdf[(cdf["time"] >= lo) & (cdf["time"] < hi)]
         folder = "sealed" if name == "hold" else "clean"
         p = root() / "data" / folder / f"{symbol}_{tf}_{name}.csv.gz"
+        if p.exists():
+            os.chmod(p, 0o644)                       # re-ingest (before the protocol is locked) may replace the file
         part.to_csv(p, index=False, compression="gzip", date_format="%Y-%m-%d %H:%M:%S")
+        if name == "hold":
+            os.chmod(p, 0o444)                       # sealed: write bits cleared
         out[name] = {"file": str(p.relative_to(root())), "rows": int(len(part)), "sha256": sha256_file(p),
                      "start": str(part["time"].min()) if len(part) else None, "end": str(part["time"].max()) if len(part) else None}
     if len(quarantine):
