@@ -102,10 +102,14 @@ def audit() -> list[dict]:
     exposed = []
     for key, e in m.items():
         p = Path(e["raw_file"])
-        if p.exists():
+        try:
+            inside = p.exists() and p.resolve().is_relative_to(root().resolve())
+        except Exception:
+            inside = p.exists()
+        if inside:
             exposed.append(p.name)
     out.append({"check": "raw_files_with_hold_rows_outside_seal", "status": "WARN" if exposed else "PASS",
                 "detail": (f"{len(exposed)} raw files still contain HOLD-period rows in {Path(next(iter(m.values()))['raw_file']).parent}. "
                            "Procedural rule: research code never reads them (the static scan enforces this for the repo). "
-                           "Move them out of the project folder before research starts if you want a stronger seal.") if exposed else "none"})
+                           "Move them out of the project folder before research starts if you want a stronger seal.") if exposed else "none (raw files with HOLD rows live in a vault outside the project folder)"})
     return out
