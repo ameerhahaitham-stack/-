@@ -15,23 +15,45 @@ def _g(d: dict, k: str, default=float("nan")):
     return default if v is None else v
 
 
+def evaluate_dev_screen(summary: dict, gross_event_edge_p: float | None = None) -> dict:
+    """DEV screen: permission to FREEZE a configuration. It is never evidence of an edge."""
+    c = protocol_params()["criteria"]["dev_screen"]
+    checks = {
+        "min_trades": (_g(summary, "n_trades", 0) >= c["min_trades"], f"{_g(summary, 'n_trades', 0)} >= {c['min_trades']}"),
+        "expectancy_net_positive": (_g(summary, "expectancy_R_net") > c["min_expectancy_R_net"], f"{_g(summary, 'expectancy_R_net'):.3f}R"),
+    }
+    if gross_event_edge_p is not None:
+        checks["gross_event_edge"] = (gross_event_edge_p <= c["min_gross_event_edge_p"], f"event-study p {gross_event_edge_p:.3f} <= {c['min_gross_event_edge_p']}")
+    ok = all(v[0] for v in checks.values())
+    return {"classification": "MAY_FREEZE" if ok else "DO_NOT_FREEZE", "passed": ok,
+            "checks": {k: {"ok": bool(v[0]), "detail": v[1]} for k, v in checks.items()}}
+
+
 def evaluate_valid(summary: dict, dev_summary: dict | None = None, neighbor_positive_share: float | None = None) -> dict:
-    """Apply the locked VALID criteria to a base-scenario summary (output of experiment.run_trial)."""
+    """Apply the locked VALID criteria to a base-scenario summary (output of experiment.run_trial).
+    Every criterion is mandatory. A criterion that could not be computed FAILS (it is never skipped)."""
     c = protocol_params()["criteria"]["valid"]
     sc = summary.get("scenarios", {})
+    dd, tot = _g(summary, "max_drawdown_R"), _g(summary, "total_R_net")
     checks = {
         "min_trades": (_g(summary, "n_trades", 0) >= c["min_trades"], f"{_g(summary, 'n_trades', 0)} >= {c['min_trades']}"),
         "expectancy_net": (_g(summary, "expectancy_R_net") >= c["min_expectancy_R_net"], f"{_g(summary, 'expectancy_R_net'):.3f}R >= {c['min_expectancy_R_net']}R"),
         "profit_factor_net": (_g(summary, "profit_factor_net") >= c["min_profit_factor_net"], f"{_g(summary, 'profit_factor_net'):.2f} >= {c['min_profit_factor_net']}"),
         "not_few_trades_luck": ((_g(summary, "expectancy_ex_top5_R") > 0) if c["expectancy_ex_top5_positive"] else True, f"expectancy without 5 best trades {_g(summary, 'expectancy_ex_top5_R'):.3f}R"),
         "adjusted_p": (_g(summary, "p_adjusted") <= c["max_adjusted_p"], f"p_adj {_g(summary, 'p_adjusted'):.3f} (m={summary.get('m_family')}) <= {c['max_adjusted_p']}"),
-        "beats_random_control": (_g(summary, "p_vs_control") <= c["max_p_vs_control"], f"p_vs_control {_g(summary, 'p_vs_control'):.3f}"),
+        "beats_random_control": (_g(summary, "p_vs_control") <= c["max_p_vs_control"], f"p_vs_control {_g(summary, 'p_vs_control'):.3f} <= {c['max_p_vs_control']}"),
         "pessimistic_costs": (_g(sc.get("pessimistic", {}), "expectancy_R_net") > c["pessimistic_expectancy_min"], f"pessimistic expectancy {_g(sc.get('pessimistic', {}), 'expectancy_R_net'):.3f}R"),
         "stress_costs": (_g(sc.get("stress", {}), "profit_factor_net") >= c["stress_profit_factor_min"], f"stress PF {_g(sc.get('stress', {}), 'profit_factor_net'):.2f}"),
         "year_stability": (_g(summary, "positive_year_share") >= c["min_positive_years_share"], f"positive years {_g(summary, 'positive_year_share'):.0%}"),
+        "max_drawdown": (dd <= c["max_drawdown_R"], f"max drawdown {dd:.1f}R <= {c['max_drawdown_R']}R"),
+        "return_to_drawdown": ((tot > 0) if dd == 0 else (tot / dd >= c["min_return_to_drawdown"]), f"total {tot:.1f}R / drawdown {dd:.1f}R >= {c['min_return_to_drawdown']}"),
+        "parameter_stability": ((neighbor_positive_share is not None and neighbor_positive_share >= c["min_neighbor_positive_share"]),
+                                "not computed (FAILS by rule)" if neighbor_positive_share is None else
+                                f"{neighbor_positive_share:.0%} of neighbouring parameter sets positive >= {c['min_neighbor_positive_share']:.0%}"),
     }
-    if neighbor_positive_share is not None:
-        checks["parameter_stability"] = (neighbor_positive_share >= 0.7, f"{neighbor_positive_share:.0%} of neighbouring parameter sets positive")
+    if "stress_tickvalue" in sc:      # present only while a symbol's tick value is unverified (see COST_MODEL.md)
+        checks["stress_tickvalue"] = (_g(sc["stress_tickvalue"], "profit_factor_net") >= c["stress_tickvalue_pf_min"],
+                                      f"tick-value stress PF {_g(sc['stress_tickvalue'], 'profit_factor_net'):.2f}")
     if dev_summary is not None:
         checks["dev_positive"] = (_g(dev_summary, "expectancy_R_net") > 0, f"DEV expectancy {_g(dev_summary, 'expectancy_R_net'):.3f}R")
     passed = all(ok for ok, _ in checks.values())
@@ -42,10 +64,11 @@ def evaluate_valid(summary: dict, dev_summary: dict | None = None, neighbor_posi
 
 def evaluate_hold(summary: dict) -> dict:
     c = protocol_params()["criteria"]["hold"]
+    dd = _g(summary, "max_drawdown_R")
     ok = (_g(summary, "n_trades", 0) >= c["min_trades"] and _g(summary, "expectancy_R_net") >= c["min_expectancy_R_net"]
-          and _g(summary, "profit_factor_net") >= c["min_profit_factor_net"])
+          and _g(summary, "profit_factor_net") >= c["min_profit_factor_net"] and dd <= c["max_drawdown_R"])
     return {"classification": "CONFIRMED_OUT_OF_SAMPLE" if ok else "NOT_CONFIRMED", "passed": bool(ok),
-            "detail": f"n={_g(summary, 'n_trades', 0)}, expectancy {_g(summary, 'expectancy_R_net'):.3f}R, PF {_g(summary, 'profit_factor_net'):.2f}"}
+            "detail": f"n={_g(summary, 'n_trades', 0)}, expectancy {_g(summary, 'expectancy_R_net'):.3f}R, PF {_g(summary, 'profit_factor_net'):.2f}, max drawdown {dd:.1f}R"}
 
 
 def trial_report_md(hid: str, symbol: str, tf: str, split: str, run: dict, verdict: dict | None = None) -> str:

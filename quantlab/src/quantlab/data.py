@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,14 +44,28 @@ def sha256_file(path: Path) -> str:
 
 # --------------------------------------------------------------------------- reading
 def read_mt5_csv(path) -> pd.DataFrame:
-    df = pd.read_csv(path)
-    df.columns = [c.strip().lower() for c in df.columns]
+    """Reads both formats: QuantLab_Export.mq5 (comma, 'time') and MT5 'Export Bars'
+    (tab, <DATE> [<TIME>] <OPEN> ... <TICKVOL> <VOL> <SPREAD>; D1 files have no <TIME>)."""
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        first = f.readline()
+    df = pd.read_csv(path, sep="\t" if "\t" in first else ",")
+    df.columns = [c.strip().strip("<>").lower() for c in df.columns]
+    df = df.rename(columns={"tickvol": "tick_volume", "vol": "real_volume"})
+    if "time" not in df.columns and "date" in df.columns:
+        stamp = df["date"].astype(str).str.strip()
+        if "time" in df.columns:
+            stamp = stamp + " " + df["time"].astype(str).str.strip()
+        df["time"] = stamp
+    elif "date" in df.columns:                       # <DATE> and <TIME> both present
+        df["time"] = df["date"].astype(str).str.strip() + " " + df["time"].astype(str).str.strip()
     missing = [c for c in ["time", "open", "high", "low", "close"] if c not in df.columns]
     if missing:
         raise ValueError(f"{path}: missing columns {missing}")
-    t = pd.to_datetime(df["time"], format="%Y.%m.%d %H:%M", errors="coerce")
-    if t.isna().any():
-        t = t.fillna(pd.to_datetime(df["time"], errors="coerce"))
+    raw = df["time"].astype(str)
+    t = pd.to_datetime(raw, format="%Y.%m.%d %H:%M:%S", errors="coerce")
+    for fmt in ("%Y.%m.%d %H:%M", "%Y.%m.%d"):
+        t = t.fillna(pd.to_datetime(raw, format=fmt, errors="coerce"))
+    t = t.fillna(pd.to_datetime(raw, errors="coerce"))
     if t.isna().any():
         raise ValueError(f"{path}: {int(t.isna().sum())} unparseable time values")
     df["time"] = t
@@ -74,6 +89,19 @@ def _ohlc_bad_mask(df: pd.DataFrame) -> pd.Series:
     return nan | nonpos | incons
 
 
+def _holiday_dates(y0: int, y1: int) -> set:
+    """Weekday market closures that are expected for metals/FX CFDs: Good Friday, Dec 24-26, Dec 31, Jan 1-2.
+    Used only to avoid calling a real holiday closure a data defect; every such gap is still counted and reported."""
+    from dateutil.easter import easter
+    out = set()
+    for y in range(y0, y1 + 1):
+        gf = pd.Timestamp(easter(y)) - pd.Timedelta(days=2)
+        out.add(gf.normalize())
+        for m, d in [(12, 24), (12, 25), (12, 26), (12, 31), (1, 1), (1, 2)]:
+            out.add(pd.Timestamp(year=y, month=m, day=d))
+    return out
+
+
 def _gap_analysis(t: pd.Series, tf: str) -> dict:
     """Classify gaps between consecutive bars. Returns counts and the largest unexpected gaps."""
     t = t.reset_index(drop=True)
@@ -86,16 +114,22 @@ def _gap_analysis(t: pd.Series, tf: str) -> dict:
         b = dates.iloc[1:].values.astype("datetime64[D]")
         gaps = []
         total_missing = 0
+        holiday_missing = 0
+        HOL = _holiday_dates(int(t.dt.year.min()), int(t.dt.year.max()))
         for prev, cur in zip(a, b):
             m = int(np.busday_count(prev + np.timedelta64(1, "D"), cur))
             if m > 0:
                 days = pd.date_range(pd.Timestamp(prev) + pd.Timedelta(days=1), pd.Timestamp(cur) - pd.Timedelta(days=1))
-                days = [d for d in days if d.weekday() < 5 and not ((d.month == 12 and d.day == 25) or (d.month == 1 and d.day == 1))]
+                days = [d for d in days if d.weekday() < 5]
+                hol_days = [d for d in days if d.normalize() in HOL]
+                holiday_missing += len(hol_days)
+                days = [d for d in days if d.normalize() not in HOL]
                 if days:
                     total_missing += len(days)
                     gaps.append({"start": str(pd.Timestamp(prev).date()), "end": str(pd.Timestamp(cur).date()), "missing": len(days)})
         wk = int((t.dt.weekday >= 5).sum())
         notes = [f"{wk} D1 bars fall on Sat/Sun (broker Sunday session?)"] if wk else []
+        notes.append(f"{holiday_missing} weekday closures match holidays (Good Friday / Christmas / New Year) and are not counted as defects")
         expected = n + total_missing
         return {"unexpected_missing_bars": total_missing, "unexpected_gaps": sorted(gaps, key=lambda g: -g["missing"])[:10],
                 "expected_bars": expected, "notes": notes}
@@ -103,22 +137,34 @@ def _gap_analysis(t: pd.Series, tf: str) -> dict:
     per = pd.Timedelta(minutes=TF_MIN[tf])
     d = t.diff()
     prev_t = t.shift(1)
-    small = (d > per) & (d <= per + pd.Timedelta(minutes=90))
+    small = (d > per) & (d <= per + pd.Timedelta(minutes=150))
     ndays = max(int(t.dt.normalize().nunique()), 1)
     slots = (prev_t[small].dt.hour * 60 + prev_t[small].dt.minute).value_counts()
-    break_slots = set(slots[slots >= 0.3 * ndays].index.tolist())
+    break_slots = set(slots[slots >= 0.05 * ndays].index.tolist())   # daily break; shifts by 1h in DST-mismatch weeks
     unexpected = 0
     gaps = []
     holiday_like = 0
+    HOL = _holiday_dates(int(t.dt.year.min()), int(t.dt.year.max()))
+    from pandas.tseries.holiday import USFederalHolidayCalendar
+    US_HOL = set(USFederalHolidayCalendar().holidays(start=t.min().normalize(), end=t.max().normalize()))
+    us_early = 0
     for i in np.where(d.values > per.to_timedelta64())[0]:
         gap = d.iloc[i]
         p = prev_t.iloc[i]
         slot = p.hour * 60 + p.minute
         missing_bars = int(round(gap / per)) - 1
-        if gap <= per + pd.Timedelta(minutes=90) and slot in break_slots:
-            continue  # normal daily break
+        if gap <= per + pd.Timedelta(minutes=150) and slot in break_slots:
+            continue  # normal daily break (1h, or 2h in the weeks when US and EU daylight-saving dates differ)
         if p.weekday() == 4 and gap <= pd.Timedelta(hours=72):
             continue  # normal weekend
+        if p.normalize() in US_HOL and missing_bars * per <= pd.Timedelta(hours=8):
+            us_early += 1          # shortened US-holiday session (metals/FX CFD early close)
+            continue
+        if gap >= pd.Timedelta(hours=20):
+            full_days = [x for x in pd.date_range(p.normalize() + pd.Timedelta(days=1), t.iloc[i].normalize() - pd.Timedelta(days=1)) if x.weekday() < 5]
+            if full_days and all(x in HOL for x in full_days):
+                holiday_like += 1
+                continue
         if gap >= pd.Timedelta(hours=24):
             nxt = t.iloc[i]
             near_hol = (p.month == 12 and p.day >= 23) or (p.month == 1 and p.day <= 3)
@@ -127,7 +173,7 @@ def _gap_analysis(t: pd.Series, tf: str) -> dict:
                 continue
         unexpected += missing_bars
         gaps.append({"start": str(p), "end": str(t.iloc[i]), "missing": missing_bars})
-    notes = [f"{holiday_like} long gaps look like holidays", f"daily-break slots (minute-of-day): {sorted(break_slots)}"]
+    notes = [f"{holiday_like} long gaps look like holidays", f"{us_early} shortened US-holiday sessions", f"daily-break slots (minute-of-day): {sorted(break_slots)}"]
     return {"unexpected_missing_bars": unexpected, "unexpected_gaps": sorted(gaps, key=lambda g: -g["missing"])[:10],
             "expected_bars": n + unexpected, "notes": notes}
 
@@ -264,6 +310,16 @@ def load_manifest() -> dict:
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
+def manifest_summary() -> dict:
+    """What the UI may show: names, status and row counts only - never file paths, hashes or sealed content."""
+    out = {}
+    for k, v in load_manifest().items():
+        out[k] = {"symbol": v["symbol"], "tf": v["tf"], "source": v["source"], "synthetic": v["synthetic"],
+                  "raw_status": v["raw_status"], "clean_status": v["clean_status"],
+                  "rows": {n: v["splits"][n]["rows"] for n in ("dev", "valid", "hold")}}
+    return out
+
+
 def _split_bounds(params: dict) -> dict:
     s = params["splits"]
     return {
@@ -287,7 +343,11 @@ def ingest(path, symbol: str, tf: str, source: str, broker: str = "", tz_note: s
         part = cdf[(cdf["time"] >= lo) & (cdf["time"] < hi)]
         folder = "sealed" if name == "hold" else "clean"
         p = root() / "data" / folder / f"{symbol}_{tf}_{name}.csv.gz"
+        if p.exists():
+            os.chmod(p, 0o644)                       # re-ingest (before the protocol is locked) may replace the file
         part.to_csv(p, index=False, compression="gzip", date_format="%Y-%m-%d %H:%M:%S")
+        if name == "hold":
+            os.chmod(p, 0o444)                       # sealed: write bits cleared
         out[name] = {"file": str(p.relative_to(root())), "rows": int(len(part)), "sha256": sha256_file(p),
                      "start": str(part["time"].min()) if len(part) else None, "end": str(part["time"].max()) if len(part) else None}
     if len(quarantine):

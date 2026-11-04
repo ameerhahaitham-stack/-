@@ -57,7 +57,7 @@ bool ExportRates(string sym, ENUM_TIMEFRAMES tf)
    FileWrite(fh, "time","open","high","low","close","tick_volume","spread","real_volume");
 
    int    digits   = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
-   datetime now    = TimeCurrent();
+   datetime now    = TimeTradeServer();   // TimeCurrent() = last quote time, which drops the last closed bar on weekends
    int    per      = PeriodSeconds(tf);
    datetime cursor = InpFrom;
    long   written  = 0;
