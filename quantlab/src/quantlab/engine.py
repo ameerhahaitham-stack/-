@@ -165,18 +165,22 @@ def run_backtest(df: pd.DataFrame, signals: list[Signal], cm: CostModel, eval_st
 
 
 # --------------------------------------------------------------------------- controls & look-ahead
-def _control_pools(df: pd.DataFrame, window: np.ndarray) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]:
+def strata_labels(df: pd.DataFrame):
+    """Per-bar exposure labels (computed once per frame): calendar year, hour of the bar open, past-only volatility regime."""
+    from .stats import label_regimes
+    t = pd.to_datetime(df["time"])
+    return t.dt.year.to_numpy(), t.dt.hour.to_numpy(), label_regimes(df)["vol"].to_numpy()
+
+
+def _control_pools(df: pd.DataFrame, window: np.ndarray, strata=None) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]:
     """Candidate bars for the random control, grouped by exposure strata (all labels use information available at the bar).
 
     year      : calendar year of the bar (removes the market's drift/volatility regime of that year from the comparison)
     time_slot : hour of the bar open on the server clock (H4 session slot; constant for D1)
     vol       : past-only volatility regime (ATR(14) vs its expanding median)
+    `window` is the set of ELIGIBLE bars (the same eligibility rule as for the real events/trades).
     """
-    from .stats import label_regimes
-    t = pd.to_datetime(df["time"])
-    year = t.dt.year.to_numpy()
-    slot = t.dt.hour.to_numpy()
-    vol = label_regimes(df)["vol"].to_numpy()
+    year, slot, vol = strata if strata is not None else strata_labels(df)
     pools: dict = {}
     for i in window:
         for key in ((int(year[i]), int(slot[i]), vol[i]), (int(year[i]), int(slot[i])), (int(slot[i]),)):
@@ -203,7 +207,7 @@ def matched_control(df: pd.DataFrame, signals: list[Signal], cm: CostModel, eval
     t = df["time"]
     es, ee = pd.Timestamp(eval_start), pd.Timestamp(eval_end)
     window = np.where((t >= es).to_numpy() & (t < ee).to_numpy() & ~np.isnan(a))[0]
-    window = window[window < len(df) - 2]
+    window = window[window < len(df) - 1]            # same rule as the engine for real signals: the entry bar i+1 must exist
     real = run_backtest(df, signals, cm, eval_start, eval_end, fallback_spread_px).trades
     nan = float("nan")
     if len(real) == 0 or len(window) == 0:

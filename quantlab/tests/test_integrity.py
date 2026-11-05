@@ -92,6 +92,7 @@ def test_valid_contaminated_hypothesis_can_never_reach_hold(lab):
     registry.register_hypothesis("P1", "breakout", "parent")
     registry.freeze_hypothesis("P1", cfg)
     run_trial("P1", "XAUUSD", "H4", "valid", cfg[0]["params"], donchian, control=False)       # VALID results of the parent are seen
+    registry.close_family("test")
     registry.record_verdict("P1", "valid", False)
     registry.register_hypothesis("C1", "breakout", "child tuned after seeing P1 on VALID", derived_from="P1")
     assert registry.valid_contaminated("C1") == ["P1"]
@@ -106,18 +107,19 @@ def test_valid_contaminated_hypothesis_can_never_reach_hold(lab):
 
 
 def test_classification_unproven_even_if_profitable_when_sample_is_small(lab):
-    good = {"n_trades": 12, "expectancy_R_net": 0.9, "profit_factor_net": 3.0, "expectancy_ex_top5_R": 0.5, "p_adjusted": 0.001,
+    good = {"n_trades": 12, "expectancy_R_net": 0.9, "profit_factor_net": 3.0, "expectancy_ex_top5_R": 0.5, "p_adjusted_provisional": 0.001,
             "p_vs_control": 0.001, "positive_year_share": 1.0, "max_drawdown_R": 2.0, "total_R_net": 10.8, "m_family": 3,
             "scenarios": {"pessimistic": {"expectancy_R_net": 0.5}, "stress": {"profit_factor_net": 2.0}}}
     from quantlab.config import protocol_params
     small = dict(good, n_trades=protocol_params()["criteria"]["valid"]["min_trades"] - 1)
-    v = evaluate_valid(small, neighbor_positive_share=0.9)
+    FP = dict(neighbor_positive_share=0.9, final_adjusted_p=0.001)
+    v = evaluate_valid(small, **FP)
     assert v["classification"] == "UNPROVEN_INSUFFICIENT_SAMPLE" and v["insufficient_sample"] and not v["passed"]
     neg_small = dict(small, expectancy_R_net=-0.3)
-    assert evaluate_valid(neg_small, neighbor_positive_share=0.9)["classification"] == "UNPROVEN_INSUFFICIENT_SAMPLE"
-    big = dict(good, n_trades=protocol_params()["criteria"]["valid"]["min_trades"] + 10, p_adjusted=0.5)
-    assert evaluate_valid(big, neighbor_positive_share=0.9)["classification"] == "UNPROVEN"
-    assert evaluate_valid(dict(big, expectancy_R_net=-0.2), neighbor_positive_share=0.9)["classification"] == "REJECTED"
+    assert evaluate_valid(neg_small, **FP)["classification"] == "UNPROVEN_INSUFFICIENT_SAMPLE"
+    big = dict(good, n_trades=protocol_params()["criteria"]["valid"]["min_trades"] + 10)
+    assert evaluate_valid(big, neighbor_positive_share=0.9, final_adjusted_p=0.5)["classification"] == "UNPROVEN"
+    assert evaluate_valid(dict(big, expectancy_R_net=-0.2), neighbor_positive_share=0.9, final_adjusted_p=0.5)["classification"] == "REJECTED"
 
 
 def test_neighbour_helpers():

@@ -16,6 +16,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .config import root
@@ -171,6 +172,9 @@ def record_verdict(hid: str, stage: str, passed: bool, detail: dict | None = Non
     st = state(hid)
     if stage == "valid" and st["status"] != "frozen":
         raise RegistryError(f"{hid}: valid verdict needs status 'frozen' (now {st['status']})")
+    if stage == "valid" and not family_closed():
+        raise RegistryError("a VALID verdict needs the FINAL family-wide Holm correction: close the DEV+VALID family first "
+                            "(close_family) so that no later trial can change m")
     return _append({"type": "verdict", "hid": hid, "stage": stage, "passed": bool(passed), "detail": detail or {}})
 
 
@@ -185,6 +189,9 @@ def log_trial(hid: str, symbol: str, tf: str, split: str, params: dict, metrics:
         raise RegistryError(f"unknown hypothesis {hid} - register it first")
     cfg = {"symbol": symbol, "tf": tf, "params": params}
     h = cfg_hash(cfg)
+    if split in ("dev", "valid") and family_closed():
+        raise RegistryError("the DEV+VALID test family is CLOSED (final multiple-testing correction already computed): no new DEV/VALID "
+                            "trials. Anything new needs a new, documented protocol version.")
     if split == "dev" and st["status"] != "registered":
         raise RegistryError(f"{hid}: DEV exploration is closed once frozen (status {st['status']})")
     if split == "valid":
@@ -196,6 +203,68 @@ def log_trial(hid: str, symbol: str, tf: str, split: str, params: dict, metrics:
         assert_hold_available(hid, symbol, tf, params)
     return _append({"type": "trial", "hid": hid, "family": st.get("family"), "symbol": symbol, "tf": tf, "split": split,
                     "cfg_hash": h, "params": params, "metrics": metrics, "data_source": data_source, "note": note})
+
+
+def family_closed() -> bool:
+    return any(e["type"] == "family_closed" for e in read_events())
+
+
+def close_family(note: str = "") -> dict:
+    """Declare the DEV+VALID family COMPLETE. Only then are the final multiple-testing corrections (Holm over the whole family)
+    available; after this no further DEV/VALID trial can be logged."""
+    check_lock()
+    if family_closed():
+        raise RegistryError("family already closed")
+    return _append({"type": "family_closed", "n_trials": trial_count(("dev", "valid")), "note": note})
+
+
+def log_code_update(commit: str, reason: str, hashes: dict, definitions_changed: bool = False) -> dict:
+    """Record a code commit made after hypotheses were registered, with SHA-256 of the files that DEFINE the hypotheses
+    (patterns.py and the SPEC table) so it is provable that no hypothesis definition changed."""
+    check_lock()
+    if definitions_changed:
+        raise RegistryError("a changed hypothesis definition must be registered as a NEW hypothesis (derived_from), not as a code update")
+    return _append({"type": "code_update", "commit": commit, "reason": reason, "definition_hashes": hashes, "definitions_changed": False})
+
+
+def family_table() -> pd.DataFrame:
+    """Raw p of EVERY DEV/VALID trial plus the family-wide corrections.
+
+    Holm step-down over the whole family: m = all logged DEV+VALID trials (event studies, strategy trials, aborted attempts);
+    trials without a p-value count as p = 1. The corrections are FINAL only after `close_family()`; before that they are
+    labelled PROVISIONAL and must not be used as results."""
+    from .stats import holm
+    ev = [e for e in read_events() if e["type"] == "trial" and e["split"] in ("dev", "valid")]
+    rows = []
+    for e in ev:
+        m = e["metrics"]
+        p = m.get("p_raw")
+        rows.append({"seq": e["seq"], "hid": e["hid"], "symbol": e["symbol"], "tf": e["tf"], "split": e["split"],
+                     "kind": m.get("kind", "aborted" if m.get("aborted") else "strategy"), "p_raw": p if p is not None else np.nan,
+                     "p_staged_at_run": m.get("p_adjusted_provisional")})
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df.assign(p_holm=[], p_bonferroni=[], status=[])
+    has = df["p_raw"].notna().to_numpy()
+    m_all = len(df)
+    df["p_bonferroni"] = np.where(has, np.minimum(df["p_raw"].fillna(1.0) * m_all, 1.0), np.nan)
+    holm_adj = np.full(len(df), np.nan)
+    if has.any():
+        holm_adj[has] = holm(df.loc[has, "p_raw"].to_numpy(float), m_all)
+    df["p_holm"] = holm_adj
+    df["status"] = "FINAL" if family_closed() else "PROVISIONAL"
+    return df
+
+
+def final_adjusted_p(seq: int) -> float:
+    """Holm-adjusted p of one logged trial over the COMPLETE family. Refuses before the family is closed."""
+    if not family_closed():
+        raise RegistryError("the family is still open: corrections computed now are PROVISIONAL. Run close_family() first.")
+    t = family_table()
+    r = t[t["seq"] == seq]
+    if r.empty or not np.isfinite(r["p_holm"].iloc[0]):
+        raise RegistryError(f"trial seq {seq} has no p-value in the family")
+    return float(r["p_holm"].iloc[0])
 
 
 def log_not_testable(hid: str, symbol: str, tf: str, params: dict, reason: str, detail: dict | None = None) -> dict:

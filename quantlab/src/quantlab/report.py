@@ -29,7 +29,8 @@ def evaluate_dev_screen(summary: dict, gross_event_edge_p: float | None = None) 
             "checks": {k: {"ok": bool(v[0]), "detail": v[1]} for k, v in checks.items()}}
 
 
-def evaluate_valid(summary: dict, dev_summary: dict | None = None, neighbor_positive_share: float | None = None) -> dict:
+def evaluate_valid(summary: dict, dev_summary: dict | None = None, neighbor_positive_share: float | None = None,
+                   final_adjusted_p: float | None = None) -> dict:
     """Apply the locked VALID criteria to a base-scenario summary (output of experiment.run_trial).
     Every criterion is mandatory. A criterion that could not be computed FAILS (it is never skipped)."""
     c = protocol_params()["criteria"]["valid"]
@@ -40,7 +41,9 @@ def evaluate_valid(summary: dict, dev_summary: dict | None = None, neighbor_posi
         "expectancy_net": (_g(summary, "expectancy_R_net") >= c["min_expectancy_R_net"], f"{_g(summary, 'expectancy_R_net'):.3f}R >= {c['min_expectancy_R_net']}R"),
         "profit_factor_net": (_g(summary, "profit_factor_net") >= c["min_profit_factor_net"], f"{_g(summary, 'profit_factor_net'):.2f} >= {c['min_profit_factor_net']}"),
         "not_few_trades_luck": ((_g(summary, "expectancy_ex_top5_R") > 0) if c["expectancy_ex_top5_positive"] else True, f"expectancy without 5 best trades {_g(summary, 'expectancy_ex_top5_R'):.3f}R"),
-        "adjusted_p": (_g(summary, "p_adjusted") <= c["max_adjusted_p"], f"p_adj {_g(summary, 'p_adjusted'):.3f} (m={summary.get('m_family')}) <= {c['max_adjusted_p']}"),
+        "adjusted_p": ((final_adjusted_p is not None and final_adjusted_p <= c["max_adjusted_p"]),
+                       "final family-wide Holm p NOT available (the staged p x m logged at run time is PROVISIONAL; close the family first) - FAILS by rule"
+                       if final_adjusted_p is None else f"final Holm p {final_adjusted_p:.4f} over the closed family <= {c['max_adjusted_p']}"),
         "beats_random_control": (_g(summary, "p_vs_control") <= c["max_p_vs_control"], f"p_vs_control {_g(summary, 'p_vs_control'):.3f} <= {c['max_p_vs_control']}"),
         "pessimistic_costs": (_g(sc.get("pessimistic", {}), "expectancy_R_net") > c["pessimistic_expectancy_min"], f"pessimistic expectancy {_g(sc.get('pessimistic', {}), 'expectancy_R_net'):.3f}R"),
         "stress_costs": (_g(sc.get("stress", {}), "profit_factor_net") >= c["stress_profit_factor_min"], f"stress PF {_g(sc.get('stress', {}), 'profit_factor_net'):.2f}"),
@@ -95,7 +98,7 @@ def trial_report_md(hid: str, symbol: str, tf: str, split: str, run: dict, verdi
         L.append("")
     keys = ["win_rate", "profit_factor_net", "expectancy_R_net", "expectancy_R_gross", "avg_win_R", "avg_loss_R", "total_R_net",
             "max_drawdown_R", "max_losing_streak", "avg_bars_held", "avg_cost_R", "median_cost_pct_of_stop", "p90_cost_pct_of_stop",
-            "p_raw", "p_adjusted", "p_vs_control", "ci_low", "ci_high"]
+            "p_raw", "p_adjusted_provisional", "p_vs_control", "ci_low", "ci_high"]
     if s.get("ci_low") is not None and s.get("n_clusters"):
         L += [f"95% CI of mean net R per trade (monthly-cluster bootstrap, {s['n_clusters']} monthly clusters): "
               f"[{s['ci_low']:.3f}, {s['ci_high']:.3f}]R" + (" - includes zero" if s["ci_low"] <= 0 <= s["ci_high"] else ""), ""]
@@ -116,7 +119,7 @@ def trial_report_md(hid: str, symbol: str, tf: str, split: str, run: dict, verdi
     L += ["", "## Rejected / skipped signals", "", str(s.get("rejects"))]
     if s.get("warnings"):
         L += ["", "## Warnings", ""] + [f"- {w}" for w in s["warnings"]]
-    L += ["", f"_Multiple-testing: p_adjusted uses all {s.get('m_family')} logged DEV+VALID trials. Past performance does not guarantee future results._"]
+    L += ["", f"_Multiple-testing: p_adjusted_provisional (staged p x m) uses all {s.get('m_family')} logged DEV+VALID trials at the time of the run and is PROVISIONAL; the final Holm correction over the closed family is in the family report. Past performance does not guarantee future results._"]
     return "\n".join(L)
 
 
@@ -128,6 +131,19 @@ def registry_report_md() -> str:
          f"Total DEV+VALID trials logged: {registry.trial_count(('dev', 'valid'))}  (this is the multiple-testing family size)", ""]
     L += ["## Hypotheses", "", hy.to_markdown(index=False) if len(hy) else "none", "", "## Trials", "",
           th.drop(columns=["params"]).round(4).to_markdown(index=False) if len(th) else "none"]
+    return "\n".join(L)
+
+
+def family_report_md() -> str:
+    t = registry.family_table()
+    closed = registry.family_closed()
+    L = ["# Multiple-testing family report", "",
+         f"Status: **{'FINAL (family closed)' if closed else 'PROVISIONAL (family still open) - do not quote these corrections as results'}**",
+         f"Trials in the family (DEV+VALID, incl. event studies and aborted attempts): {len(t)}", "",
+         "Raw p-values are kept for every trial. Holm is recomputed over the whole family (m = all trials; trials without a p count as p = 1).", ""]
+    if len(t):
+        t2 = t.drop(columns=["p_staged_at_run"]).copy()
+        L += [t2.round(5).to_markdown(index=False)]
     return "\n".join(L)
 
 

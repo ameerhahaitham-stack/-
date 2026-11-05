@@ -6,7 +6,7 @@ import pytest
 from quantlab.config import protocol_params
 from quantlab.report import evaluate_dev_screen, evaluate_hold, evaluate_valid
 
-GOOD = {"n_trades": 120, "expectancy_R_net": 0.18, "profit_factor_net": 1.4, "expectancy_ex_top5_R": 0.10, "p_adjusted": 0.04,
+GOOD = {"n_trades": 120, "expectancy_R_net": 0.18, "profit_factor_net": 1.4, "expectancy_ex_top5_R": 0.10, "p_adjusted_provisional": 0.04,
         "m_family": 30, "p_vs_control": 0.03, "positive_year_share": 0.75, "max_drawdown_R": 9.0, "total_R_net": 21.6,
         "scenarios": {"pessimistic": {"expectancy_R_net": 0.08, "profit_factor_net": 1.15}, "stress": {"expectancy_R_net": 0.02, "profit_factor_net": 1.05}}}
 
@@ -14,8 +14,10 @@ GOOD = {"n_trades": 120, "expectancy_R_net": 0.18, "profit_factor_net": 1.4, "ex
 def verdict(**over):
     s = copy.deepcopy(GOOD)
     for k, v in over.items():
-        s[k] = v
-    return evaluate_valid(s, dev_summary={"expectancy_R_net": 0.12}, neighbor_positive_share=over.pop("_nb", 0.85) if False else 0.85)
+        if k != "final_p":
+            s[k] = v
+    fp = over.get("final_p", 0.04)
+    return evaluate_valid(s, dev_summary={"expectancy_R_net": 0.12}, neighbor_positive_share=0.85, final_adjusted_p=fp)
 
 
 def test_a_strategy_meeting_every_rule_is_accepted_for_hold(lab):
@@ -25,7 +27,7 @@ def test_a_strategy_meeting_every_rule_is_accepted_for_hold(lab):
 
 @pytest.mark.parametrize("field,bad,rule", [
     ("n_trades", 2, "min_trades"), ("expectancy_R_net", 0.05, "expectancy_net"), ("profit_factor_net", 1.1, "profit_factor_net"),
-    ("expectancy_ex_top5_R", -0.01, "not_few_trades_luck"), ("p_adjusted", 0.25, "adjusted_p"), ("p_vs_control", 0.3, "beats_random_control"),
+    ("expectancy_ex_top5_R", -0.01, "not_few_trades_luck"), ("final_p", 0.25, "adjusted_p"), ("p_vs_control", 0.3, "beats_random_control"),
     ("positive_year_share", 0.25, "year_stability"), ("max_drawdown_R", 25.0, "max_drawdown")])
 def test_each_single_failure_blocks_acceptance(lab, field, bad, rule):
     v = verdict(**{field: bad})
@@ -67,3 +69,10 @@ def test_hold_rules_include_drawdown(lab):
     assert evaluate_hold(ok)["classification"] == "CONFIRMED_OUT_OF_SAMPLE"
     assert evaluate_hold({**ok, "max_drawdown_R": 30})["classification"] == "NOT_CONFIRMED"
     assert evaluate_hold({**ok, "n_trades": protocol_params()["criteria"]["hold"]["min_trades"] - 1})["classification"] == "NOT_CONFIRMED"
+
+
+def test_staged_p_is_never_a_final_result(lab):
+    """Without the final family-wide Holm p the adjusted-p criterion FAILS, however good the staged p x m looked."""
+    v = evaluate_valid(copy.deepcopy(GOOD), dev_summary={"expectancy_R_net": 0.12}, neighbor_positive_share=0.85)
+    assert not v["passed"] and not v["checks"]["adjusted_p"]["ok"] and "PROVISIONAL" in v["checks"]["adjusted_p"]["detail"]
+    assert v["classification"] != "ACCEPTED_FOR_HOLD"

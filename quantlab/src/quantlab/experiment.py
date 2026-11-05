@@ -58,9 +58,14 @@ def neighbor_positive_share(expectancies: list[float]) -> float | None:
 
 
 def run_event_study(hid: str, symbol: str, tf: str, pattern_fn, params: dict | None = None, primary_h: int = 5,
-                    n_ctrl: int = 2000, note: str = "", save: bool = True) -> dict:
+                    n_ctrl: int = 2000, n_ctrl_primary: int = 20000, note: str = "", save: bool = True,
+                    lookahead_check: bool = True) -> dict:
     """Stage 1 (gross, cost-free). DEV ONLY. Logged as a trial: it is a statistical test and counts in the multiple-testing family.
-    Only the PRIMARY horizon is tested; the other horizons are descriptive. Look-ahead is checked like for strategies."""
+    Only the PRIMARY horizon is tested; the other horizons are descriptive. Look-ahead is checked like for strategies.
+
+    Eligibility (one rule for events and control, see events.eligible): an event counts only if its entry bar and its FULL primary
+    horizon (bar i+h) lie inside the DEV window. The >= 30 events requirement is applied to those eligible, de-duplicated events."""
+    from .events import eligible
     from .patterns import event_arrays
     params = params or {}
     pp = protocol_params()
@@ -68,25 +73,28 @@ def run_event_study(hid: str, symbol: str, tf: str, pattern_fn, params: dict | N
     df, es, ee, entry = load_with_context(symbol, tf, "dev")
     try:
         fn = lambda d: [Signal(e.i, e.side, e.stop) for e in pattern_fn(d, **params)]
-        lc = pp["lookahead_check"]
-        bad = check_no_lookahead(fn, df, lc["n_checks"], lc["seed"])
-        if bad:
-            raise LookaheadError(f"{hid}: pattern changes when future bars are removed: {bad[0]}")
+        if lookahead_check:
+            lc = pp["lookahead_check"]
+            bad = check_no_lookahead(fn, df, lc["n_checks"], lc["seed"])
+            if bad:
+                raise LookaheadError(f"{hid}: pattern changes when future bars are removed: {bad[0]}")
         evs = pattern_fn(df, **params)
-        idx, side = event_arrays(evs)
-        tt = pd.to_datetime(df["time"])
-        in_w = np.array([(i + 1 < len(df)) and (tt.iloc[i + 1] >= es) and (tt.iloc[i + 1] < ee) for i in idx], bool) if len(idx) else np.array([], bool)
-        min_ev = EVENT_MIN_EVENTS
-        if int(in_w.sum()) < min_ev:
-            registry.log_not_testable(hid, symbol, tf, params, f"fewer than {min_ev} de-duplicated DEV events", {"n_events_dev": int(in_w.sum())})
-            return {"trial_seq": None, "summary": {"kind": "not_testable", "n_events": int(in_w.sum()), "min_events": min_ev}, "table": None}
-        tab = event_study(df, idx, side, horizons=(1, 3, primary_h, 10, 20), eval_start=es, eval_end=ee, n_ctrl=n_ctrl, seed=pp["control"]["seed"])
+        elig = eligible(df, primary_h, es, ee)
+        evs_ok = [e for e in evs if elig[e.i]]                      # eligibility FIRST, then de-duplication
+        idx, side = event_arrays(evs_ok)
+        n_eligible = int(len(idx))
+        if n_eligible < EVENT_MIN_EVENTS:
+            registry.log_not_testable(hid, symbol, tf, params, f"fewer than {EVENT_MIN_EVENTS} eligible de-duplicated DEV events",
+                                      {"n_events_raw": int(len(evs)), "n_eligible_dedup": n_eligible, "primary_horizon": primary_h})
+            return {"trial_seq": None, "summary": {"kind": "not_testable", "n_events": n_eligible, "min_events": EVENT_MIN_EVENTS}, "table": None}
+        tab = event_study(df, idx, side, horizons=(1, 3, primary_h, 10, 20), eval_start=es, eval_end=ee, n_ctrl=n_ctrl,
+                          seed=pp["control"]["seed"], primary_h=primary_h, n_ctrl_primary=n_ctrl_primary)
         row = tab[tab["horizon"] == primary_h].iloc[0].to_dict()
-        n_raw = int(len(evs))
-        summary = {"kind": "event_study", "primary_horizon": primary_h, "n_events_raw": n_raw, "n_events": int(row.get("n", 0)),
+        summary = {"kind": "event_study", "primary_horizon": primary_h, "n_events_raw": int(len(evs)), "n_events": int(row.get("n", 0)),
+                   "n_control_candidates": row.get("n_control_candidates"),
                    "edge_ATR": row.get("edge_ATR"), "mean_ATR": row.get("mean_ATR"), "hit_rate": row.get("hit_rate"),
-                   "p_vs_random": row.get("p_vs_random"), "p_raw": row.get("p_vs_random"),
-                   "long_share": float((side == 1).mean()) if len(side) else None,
+                   "p_vs_random": row.get("p_vs_random"), "p_raw": row.get("p_vs_random"), "n_ctrl_used": row.get("n_ctrl"),
+                   "p_resolution": row.get("p_resolution"), "long_share": float((side == 1).mean()) if len(side) else None,
                    "descriptive_horizons": tab.round(4).to_dict(orient="records")}
     except Exception as ex:
         _log_aborted(hid, symbol, tf, "dev", params, entry, note + " | event_study", ex)
@@ -126,7 +134,7 @@ def run_trial(hid: str, symbol: str, tf: str, split: str, params: dict, signal_f
         ctrl = matched_control(df, sigs, scen["base"], es, ee, pp["control"]["n_reps"], pp["control"]["seed"], fb) if control else {}
         m_family = max(registry.trial_count(("dev", "valid")) + 1, 1)      # counts aborted attempts too
         summary = {**metrics["base"], **{f"p_raw": bs["p_raw"], "ci_low": bs["ci_low"], "ci_high": bs["ci_high"], "n_clusters": bs.get("n_clusters")},
-                   "p_adjusted": adjust_p(bs["p_raw"], m_family, pp["multiple_testing"]["method"]), "m_family": m_family,
+                   "p_adjusted_provisional": adjust_p(bs["p_raw"], m_family, pp["multiple_testing"]["method"]), "m_family": m_family,   # staged p x m: PROVISIONAL, never a final result (see registry.family_table)
                    "p_vs_control": ctrl.get("p_vs_control"), "edge_vs_control_R": ctrl.get("diff"), "control_diag": ctrl,
                    "scenarios": {k: {"expectancy_R_net": v.get("expectancy_R_net"), "profit_factor_net": v.get("profit_factor_net"),
                                      "n_trades": v.get("n_trades")} for k, v in metrics.items()},
