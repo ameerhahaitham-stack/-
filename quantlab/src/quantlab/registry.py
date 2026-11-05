@@ -119,7 +119,8 @@ def state(hid: str) -> dict:
             continue
         t = ev["type"]
         if t == "hypothesis_registered":
-            st.update(exists=True, status="registered", family=ev["family"], description=ev["description"])
+            st.update(exists=True, status="registered", family=ev["family"], description=ev["description"],
+                      derived_from=ev.get("derived_from"))
         elif t == "hypothesis_frozen":
             st.update(status="frozen", frozen_cfgs=ev["cfg_hashes"])
         elif t == "verdict" and ev["stage"] == "valid":
@@ -131,11 +132,29 @@ def state(hid: str) -> dict:
     return st
 
 
-def register_hypothesis(hid: str, family: str, description: str, rules: dict | None = None) -> dict:
+def register_hypothesis(hid: str, family: str, description: str, rules: dict | None = None, derived_from: str | None = None) -> dict:
+    """Register a hypothesis. A variant/amendment of an earlier hypothesis MUST name it in `derived_from`
+    (any change after freezing is a new hypothesis, never an edit)."""
     check_lock()
     if state(hid)["exists"]:
         raise RegistryError(f"hypothesis {hid} already exists - create a new id for a new variant")
-    return _append({"type": "hypothesis_registered", "hid": hid, "family": family, "description": description, "rules": rules or {}})
+    if derived_from is not None and not state(derived_from)["exists"]:
+        raise RegistryError(f"derived_from {derived_from!r} is not a registered hypothesis")
+    return _append({"type": "hypothesis_registered", "hid": hid, "family": family, "description": description,
+                    "rules": rules or {}, "derived_from": derived_from})
+
+
+def valid_contaminated(hid: str) -> list[str]:
+    """Ancestors (via derived_from) that were already evaluated on VALID. A hypothesis built after looking at VALID results of
+    its ancestor is contaminated: it can be scored on VALID for the record but can never be sent to HOLD."""
+    seen, out, cur = set(), [], state(hid).get("derived_from")
+    while cur and cur not in seen:
+        seen.add(cur)
+        if any(ev.get("hid") == cur and ((ev["type"] == "trial" and ev["split"] == "valid") or
+                                          (ev["type"] == "verdict" and ev["stage"] == "valid")) for ev in read_events()):
+            out.append(cur)
+        cur = state(cur).get("derived_from")
+    return out
 
 
 def freeze_hypothesis(hid: str, configs: list[dict]) -> dict:
@@ -187,6 +206,10 @@ def request_hold(hid: str) -> list[dict]:
         raise RegistryError(f"{hid}: HOLD was already opened once - it cannot be reused")
     if st["status"] != "valid_pass":
         raise RegistryError(f"{hid}: HOLD needs status 'valid_pass' (now {st['status']})")
+    tainted = valid_contaminated(hid)
+    if tainted:
+        raise RegistryError(f"{hid}: derived from {tainted}, whose VALID results were already seen - VALID is contaminated for this "
+                            "hypothesis, so it can never be sent to HOLD (use a hypothesis that was designed on DEV only)")
     cfgs = [ev["configs"] for ev in read_events() if ev["type"] == "hypothesis_frozen" and ev["hid"] == hid][-1]
     _append({"type": "hold_access", "hid": hid, "configs": cfgs})
     return cfgs

@@ -165,12 +165,38 @@ def run_backtest(df: pd.DataFrame, signals: list[Signal], cm: CostModel, eval_st
 
 
 # --------------------------------------------------------------------------- controls & look-ahead
-def matched_control(df: pd.DataFrame, signals: list[Signal], cm: CostModel, eval_start, eval_end,
-                    n_reps: int = 500, seed: int = 777, fallback_spread_px: float = 0.0) -> dict:
-    """Random-entry control: same side, same stop distance in ATR units, same rr/max_hold, random bars in the window.
+def _control_pools(df: pd.DataFrame, window: np.ndarray) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]:
+    """Candidate bars for the random control, grouped by exposure strata (all labels use information available at the bar).
 
-    Returns the signal mean net R, the distribution of control means and a one-sided p-value
-    P(control_mean >= signal_mean). A real edge must beat entries placed at random with the same exits and costs.
+    year      : calendar year of the bar (removes the market's drift/volatility regime of that year from the comparison)
+    time_slot : hour of the bar open on the server clock (H4 session slot; constant for D1)
+    vol       : past-only volatility regime (ATR(14) vs its expanding median)
+    """
+    from .stats import label_regimes
+    t = pd.to_datetime(df["time"])
+    year = t.dt.year.to_numpy()
+    slot = t.dt.hour.to_numpy()
+    vol = label_regimes(df)["vol"].to_numpy()
+    pools: dict = {}
+    for i in window:
+        for key in ((int(year[i]), int(slot[i]), vol[i]), (int(year[i]), int(slot[i])), (int(slot[i]),)):
+            pools.setdefault(key, []).append(int(i))
+    return {k: np.array(v) for k, v in pools.items()}, year, slot, vol
+
+
+def matched_control(df: pd.DataFrame, signals: list[Signal], cm: CostModel, eval_start, eval_end,
+                    n_reps: int = 500, seed: int = 777, fallback_spread_px: float = 0.0, min_stratum: int = 5) -> dict:
+    """Matched random-entry control (not a naive random baseline).
+
+    For every real trade the control draws a random bar from the SAME exposure stratum as the signal bar
+    (year x time-of-day slot x past-only volatility regime; falls back to year x slot, then slot, when a stratum has fewer than
+    `min_stratum` bars) and applies the SAME side, the SAME stop distance in ATR units, the SAME rr / max_hold and the SAME cost
+    model. Therefore the control matches: market exposure timing, trade direction, stop geometry, holding rules, trade count
+    and costs. Concurrency: random picks that overlap an open position are skipped by the engine exactly as for real signals;
+    to keep the trade count equal to the real one, every spec is drawn twice and the executed control trades are randomly
+    sub-sampled down to the real count (never chronologically, so no time bias).
+
+    Returns the signal mean net R, the control distribution, a one-sided p-value P(control_mean >= signal_mean) and diagnostics.
     """
     df = df.reset_index(drop=True)
     a = atr(df, 14)
@@ -179,31 +205,53 @@ def matched_control(df: pd.DataFrame, signals: list[Signal], cm: CostModel, eval
     window = np.where((t >= es).to_numpy() & (t < ee).to_numpy() & ~np.isnan(a))[0]
     window = window[window < len(df) - 2]
     real = run_backtest(df, signals, cm, eval_start, eval_end, fallback_spread_px).trades
+    nan = float("nan")
     if len(real) == 0 or len(window) == 0:
-        return {"signal_mean": float("nan"), "control_mean": float("nan"), "diff": float("nan"), "p_vs_control": float("nan"), "n_reps": 0}
+        return {"signal_mean": nan, "control_mean": nan, "diff": nan, "p_vs_control": nan, "n_reps": 0}
+    pools, year, slot, vol = _control_pools(df, window)
     rng = np.random.default_rng(seed)
     o = df["open"].to_numpy(float)
-    spec = []
+    by_i = {s.i: s for s in signals}
+    spec, level_used = [], {"year_slot_vol": 0, "year_slot": 0, "slot": 0, "window": 0}
     for r in real.itertuples():
         i0, e0 = r.signal_bar, r.entry_bar
         if np.isnan(a[i0]) or a[i0] <= 0:
             continue
-        sg0 = next((s for s in signals if s.i == i0), None)
-        spec.append((r.side, abs(o[e0] - sg0.stop) / a[i0], sg0.rr, sg0.max_hold))
-    means = []
+        sg0 = by_i[i0]
+        pool = None
+        for name, key in (("year_slot_vol", (int(year[i0]), int(slot[i0]), vol[i0])), ("year_slot", (int(year[i0]), int(slot[i0]))),
+                          ("slot", (int(slot[i0]),))):
+            cand = pools.get(key)
+            if cand is not None and len(cand) >= min_stratum:
+                pool, level_used[name] = cand, level_used[name] + 1
+                break
+        if pool is None:
+            pool, level_used["window"] = window, level_used["window"] + 1
+        spec.append((r.side, abs(o[e0] - sg0.stop) / a[i0], sg0.rr, sg0.max_hold, pool))
+    n_real = len(spec)
+    means, held, n_exec = [], [], []
     for _ in range(n_reps):
-        idx = rng.choice(window, size=len(spec), replace=True)
         sigs = []
-        for (side, k, rr, mh), i in zip(spec, idx):
-            sigs.append(Signal(int(i), side, o[i + 1] - side * k * a[i], rr, mh))
+        for (side, k, rr, mh, pool) in spec:
+            for i in rng.choice(pool, size=2):
+                sigs.append(Signal(int(i), side, o[i + 1] - side * k * a[i], rr, mh))
         res = run_backtest(df, sigs, cm, eval_start, eval_end, fallback_spread_px).trades
-        if len(res):
-            means.append(float(res["net_R"].mean()))
+        if len(res) == 0:
+            continue
+        n_exec.append(len(res))
+        if len(res) > n_real:
+            res = res.iloc[np.sort(rng.choice(len(res), size=n_real, replace=False))]
+        means.append(float(res["net_R"].mean()))
+        held.append(float(res["bars_held"].mean()))
     means = np.array(means)
     sig_mean = float(real["net_R"].mean())
-    p = (1 + int((means >= sig_mean).sum())) / (1 + len(means)) if len(means) else float("nan")
-    return {"signal_mean": sig_mean, "control_mean": float(means.mean()) if len(means) else float("nan"),
-            "diff": sig_mean - (float(means.mean()) if len(means) else float("nan")), "p_vs_control": p, "n_reps": int(len(means))}
+    p = (1 + int((means >= sig_mean).sum())) / (1 + len(means)) if len(means) else nan
+    cmean = float(means.mean()) if len(means) else nan
+    return {"signal_mean": sig_mean, "control_mean": cmean, "diff": sig_mean - cmean, "p_vs_control": p, "n_reps": int(len(means)),
+            "real_trades": int(len(real)), "control_trades_mean": float(np.mean([min(x, n_real) for x in n_exec])) if n_exec else nan,
+            "control_trades_available_mean": float(np.mean(n_exec)) if n_exec else nan,
+            "real_bars_held": float(real["bars_held"].mean()), "control_bars_held": float(np.mean(held)) if held else nan,
+            "real_long_share": float((real["side"] == 1).mean()), "strata_levels_used": level_used}
 
 
 def check_no_lookahead(signal_fn, df: pd.DataFrame, n_checks: int = 5, seed: int = 99) -> list[dict]:

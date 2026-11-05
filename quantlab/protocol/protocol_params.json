@@ -1,6 +1,6 @@
 {
-  "version": "1.1",
-  "NOTE": "This file is hashed by 'lock-protocol'. Edit ONLY before locking. Cost numbers are ASSUMPTIONS: the data comes from a MetaQuotes-Demo account (no real commission or execution). Commission 7 USD/lot round-trip is a provisional baseline; the 4 scenarios scale it up to 2x. stress_tickvalue is built only for symbols whose MT5 tick value contradicts the contract size and have not been verified with OrderCalcProfit.",
+  "version": "1.2",
+  "NOTE": "This file is hashed by 'lock-protocol'. Edit ONLY before locking. Cost numbers are ASSUMPTIONS: the data comes from a MetaQuotes-Demo account (no real commission or execution). Commission 7 USD/lot round-trip is a provisional baseline; the 4 scenarios scale it up to 2x. Symbol specs (value per 1.00 price move per lot: XAUUSD 100, EURUSD 100000) were VERIFIED with OrderCalcProfit on 2026-11-05 (QL_calc_check.csv); MT5's reported XAUUSD tick_value (0.1) is inconsistent with it and is not used. stress_tickvalue is therefore inactive for verified symbols (built only if a symbol's tick value contradicts its contract size and is unverified; its code path stays covered by a unit test). Spread: effective = max(measured MT5 bar spread, spread_floor) on every bar, scaled by the scenario's spread_mult; see docs/COST_MODEL.md.",
   "splits": {
     "dev": {
       "start": "2018-01-01",
@@ -131,10 +131,50 @@
   },
   "control": {
     "n_reps": 500,
-    "seed": 777
+    "seed": 777,
+    "match": [
+      "year",
+      "time_slot(hour of bar open)",
+      "past_only_vol_regime"
+    ],
+    "min_stratum_bars": 5,
+    "fallback_order": [
+      "year+slot+vol",
+      "year+slot",
+      "slot",
+      "window"
+    ],
+    "same_side": true,
+    "same_stop_in_ATR": true,
+    "same_rr_and_max_hold": true,
+    "same_costs": true,
+    "count_matched_by_random_subsample": true
   },
   "lookahead_check": {
     "n_checks": 5,
     "seed": 99
+  },
+  "engine_conventions": {
+    "sl_tp_same_bar": "stop first",
+    "stop_gap": "fills at worse open",
+    "tp_gap": "fills at TP level, no improvement",
+    "spread": "effective = max(measured, floor) x scenario multiplier; paid once per round trip",
+    "entry": "open of bar after signal"
+  },
+  "classification": {
+    "ACCEPTED_FOR_HOLD": "all mandatory VALID criteria pass",
+    "UNPROVEN_INSUFFICIENT_SAMPLE": "n_trades below criteria.valid.min_trades, whatever the sign of the result",
+    "UNPROVEN": "enough trades and positive net expectancy but at least one mandatory criterion fails",
+    "REJECTED": "enough trades and non-positive net expectancy"
+  },
+  "trial_accounting": {
+    "count_in_family": [
+      "dev",
+      "valid"
+    ],
+    "include_aborted_attempts": true,
+    "neighbors_are_valid_trials": true,
+    "derived_hypotheses_must_declare_parent": true,
+    "valid_contaminated_never_reach_hold": true
   }
 }

@@ -95,7 +95,7 @@ def cluster_bootstrap(trades: pd.DataFrame, n: int = 5000, seed: int = 12345, ki
     obs = r.mean()
     null = means - obs
     p = (1 + int((null >= obs).sum())) / (1 + n)
-    return {"ci_low": float(np.percentile(means, 2.5)), "ci_high": float(np.percentile(means, 97.5)), "p_raw": float(p)}
+    return {"ci_low": float(np.percentile(means, 2.5)), "ci_high": float(np.percentile(means, 97.5)), "p_raw": float(p), "n_clusters": int(k)}
 
 
 # --------------------------------------------------------------------------- multiple testing
