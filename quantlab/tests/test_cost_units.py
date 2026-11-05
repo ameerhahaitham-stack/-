@@ -40,6 +40,14 @@ CASES = {
                            risk=10.05, spread=0.10, comm=0.07, slip=0.15, net_px=4.68, gross_R=0.5, net_R=4.68 / 10.05),
     "EUR_long_time": dict(sym="EURUSD", side=1, bars=[(1.1, 1.1005, 1.0995, 1.1), (1.1, 1.1055, 1.0995, 1.105)], stop=1.09, rr=None, hold=1,
                           risk=0.01006, spread=0.00005, comm=0.00007, slip=0.00003, net_px=0.00485, gross_R=0.5, net_R=0.00485 / 0.01006),
+    # EURUSD SELL (independent hand computation, symmetric to the long case):
+    #   signal bar close 1.1000, entry = next open 1.1000; short sells at the BID: slippage in = -0.00001 -> fill 1.09999
+    #   risk = |1.09999 - 1.11000| = 0.01001
+    #   time exit at close 1.0950; a short is closed by BUYING at the ask: + spread 0.00005 -> 1.09505, + exit slippage 0.00002 -> 1.09507
+    #   gross pnl (fill-to-fill) = 1.09999 - 1.09507 = 0.00492 ; commission 0.00007 -> net 0.00485 ; costs charged once each:
+    #   spread 0.00005 + commission 0.00007 + slippage (0.00001 + 0.00002) 0.00003 = 0.00015 (identical to the long case)
+    "EUR_short_time": dict(sym="EURUSD", side=-1, bars=[(1.1, 1.1005, 1.0995, 1.1), (1.1, 1.1005, 1.0945, 1.095)], stop=1.11, rr=None, hold=1,
+                           risk=0.01001, spread=0.00005, comm=0.00007, slip=0.00003, net_px=0.00485, gross_R=0.5, net_R=0.00485 / 0.01001),
 }
 
 
@@ -110,3 +118,17 @@ def test_documented_dev_mean_vs_floor_only_totals():
     e = base("EURUSD")
     assert e.spread_floor_px == pytest.approx(5e-5) and e.commission_px == pytest.approx(7e-5)
     assert (e.slippage_in_px + e.slippage_out_px) == pytest.approx(3e-5)
+
+
+def test_eurusd_buy_and_sell_costs_are_symmetric_and_fills_are_on_the_correct_side():
+    """Same price path mirrored: both directions pay exactly the same price-unit costs; the long fills ABOVE the open (ask side),
+    the short fills BELOW it (bid side); exits are on the opposite sides."""
+    buy = run("EURUSD", CASES["EUR_long_time"]["bars"], Signal(0, 1, 1.09, None, 1))
+    sell = run("EURUSD", CASES["EUR_short_time"]["bars"], Signal(0, -1, 1.11, None, 1))
+    assert buy.entry_fill == pytest.approx(1.10006, abs=1e-12)        # open + spread 0.00005 + slippage 0.00001 (ask side)
+    assert sell.entry_fill == pytest.approx(1.09999, abs=1e-12)       # open - slippage 0.00001 (bid side, spread paid once on exit)
+    assert buy.exit_fill == pytest.approx(1.10498, abs=1e-12)         # bid close 1.105 - exit slippage 0.00002
+    assert sell.exit_fill == pytest.approx(1.09507, abs=1e-12)        # close 1.095 + spread 0.00005 + slippage 0.00002 (ask side)
+    for k in ("spread_px", "commission_px", "slippage_px"):
+        assert getattr(buy, k) == pytest.approx(getattr(sell, k), abs=1e-12)
+    assert buy.pnl_px_net == pytest.approx(sell.pnl_px_net, abs=1e-12)
