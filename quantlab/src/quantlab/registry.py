@@ -198,6 +198,16 @@ def log_trial(hid: str, symbol: str, tf: str, split: str, params: dict, metrics:
                     "cfg_hash": h, "params": params, "metrics": metrics, "data_source": data_source, "note": note})
 
 
+def log_not_testable(hid: str, symbol: str, tf: str, params: dict, reason: str, detail: dict | None = None) -> dict:
+    """Record (not a trial) that a hypothesis x dataset pair was not tested because a pre-declared precondition failed
+    (e.g. fewer than 30 de-duplicated DEV events). The decision uses event COUNTS only, never outcomes."""
+    check_lock()
+    if not state(hid)["exists"]:
+        raise RegistryError(f"unknown hypothesis {hid}")
+    return _append({"type": "pair_not_testable", "hid": hid, "symbol": symbol, "tf": tf, "params": params, "reason": reason,
+                    "detail": detail or {}})
+
+
 def request_hold(hid: str) -> list[dict]:
     """Open HOLD for a hypothesis. One-shot and audited."""
     check_lock()

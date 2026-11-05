@@ -16,8 +16,12 @@ from . import registry
 from .config import protocol_params, root
 from .costs import build_scenarios, fallback_spread_px
 from .data import load_specs, load_with_context
-from .engine import check_no_lookahead, matched_control, run_backtest
+from .engine import Signal, check_no_lookahead, matched_control, run_backtest
+from .events import event_study
 from .stats import adjust_p, by_year, cluster_bootstrap, label_regimes, by_regime, positive_year_share, trade_metrics
+
+
+EVENT_MIN_EVENTS = 30      # pre-declared in docs/HYPOTHESES_DEV_PLAN.md (a property of the definition, not of any outcome)
 
 
 class LookaheadError(RuntimeError):
@@ -51,6 +55,50 @@ def neighbor_positive_share(expectancies: list[float]) -> float | None:
     """Share of neighbouring configurations with positive net expectancy (None if there are none: the criterion then FAILS)."""
     e = [x for x in expectancies if x is not None and np.isfinite(x)]
     return float(np.mean([x > 0 for x in e])) if e else None
+
+
+def run_event_study(hid: str, symbol: str, tf: str, pattern_fn, params: dict | None = None, primary_h: int = 5,
+                    n_ctrl: int = 2000, note: str = "", save: bool = True) -> dict:
+    """Stage 1 (gross, cost-free). DEV ONLY. Logged as a trial: it is a statistical test and counts in the multiple-testing family.
+    Only the PRIMARY horizon is tested; the other horizons are descriptive. Look-ahead is checked like for strategies."""
+    from .patterns import event_arrays
+    params = params or {}
+    pp = protocol_params()
+    registry.check_lock()
+    df, es, ee, entry = load_with_context(symbol, tf, "dev")
+    try:
+        fn = lambda d: [Signal(e.i, e.side, e.stop) for e in pattern_fn(d, **params)]
+        lc = pp["lookahead_check"]
+        bad = check_no_lookahead(fn, df, lc["n_checks"], lc["seed"])
+        if bad:
+            raise LookaheadError(f"{hid}: pattern changes when future bars are removed: {bad[0]}")
+        evs = pattern_fn(df, **params)
+        idx, side = event_arrays(evs)
+        tt = pd.to_datetime(df["time"])
+        in_w = np.array([(i + 1 < len(df)) and (tt.iloc[i + 1] >= es) and (tt.iloc[i + 1] < ee) for i in idx], bool) if len(idx) else np.array([], bool)
+        min_ev = EVENT_MIN_EVENTS
+        if int(in_w.sum()) < min_ev:
+            registry.log_not_testable(hid, symbol, tf, params, f"fewer than {min_ev} de-duplicated DEV events", {"n_events_dev": int(in_w.sum())})
+            return {"trial_seq": None, "summary": {"kind": "not_testable", "n_events": int(in_w.sum()), "min_events": min_ev}, "table": None}
+        tab = event_study(df, idx, side, horizons=(1, 3, primary_h, 10, 20), eval_start=es, eval_end=ee, n_ctrl=n_ctrl, seed=pp["control"]["seed"])
+        row = tab[tab["horizon"] == primary_h].iloc[0].to_dict()
+        n_raw = int(len(evs))
+        summary = {"kind": "event_study", "primary_horizon": primary_h, "n_events_raw": n_raw, "n_events": int(row.get("n", 0)),
+                   "edge_ATR": row.get("edge_ATR"), "mean_ATR": row.get("mean_ATR"), "hit_rate": row.get("hit_rate"),
+                   "p_vs_random": row.get("p_vs_random"), "p_raw": row.get("p_vs_random"),
+                   "long_share": float((side == 1).mean()) if len(side) else None,
+                   "descriptive_horizons": tab.round(4).to_dict(orient="records")}
+    except Exception as ex:
+        _log_aborted(hid, symbol, tf, "dev", params, entry, note + " | event_study", ex)
+        raise
+    ev = registry.log_trial(hid, symbol, tf, "dev", params, summary, data_source=entry["source"], note=(note + " | event_study").strip(" |"),
+                            synthetic=entry["synthetic"])
+    if save:
+        d = root() / "results" / hid
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"event_dev_{symbol}_{tf}_{ev['seq']}.json").write_text(json.dumps({"hid": hid, "symbol": symbol, "tf": tf, "params": params,
+                                                                               "summary": summary}, indent=2, default=str), encoding="utf-8")
+    return {"trial_seq": ev["seq"], "summary": summary, "table": tab}
 
 
 def run_trial(hid: str, symbol: str, tf: str, split: str, params: dict, signal_fn, note: str = "",
