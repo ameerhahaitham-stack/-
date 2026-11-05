@@ -24,6 +24,35 @@ class LookaheadError(RuntimeError):
     pass
 
 
+def _log_aborted(hid, symbol, tf, split, params, entry, note, ex) -> None:
+    try:
+        registry.log_trial(hid, symbol, tf, split, params, {"aborted": True, "reason": f"{type(ex).__name__}: {str(ex)[:300]}"},
+                           data_source=entry["source"], note=(note + " | ABORTED").strip(" |"), synthetic=entry["synthetic"])
+    except Exception:            # never mask the original error
+        pass
+
+
+def neighbor_configs(params: dict, grids: dict) -> list[dict]:
+    """Parameter neighbours: for every parameter that has a grid, one step down and one step up (others unchanged).
+    Neighbours are frozen together with the main configuration and each is a VALID trial (all are counted)."""
+    out = []
+    for k, grid in grids.items():
+        g = sorted(grid)
+        if params.get(k) not in g:
+            continue
+        i = g.index(params[k])
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(g):
+                out.append({**params, k: g[j]})
+    return out
+
+
+def neighbor_positive_share(expectancies: list[float]) -> float | None:
+    """Share of neighbouring configurations with positive net expectancy (None if there are none: the criterion then FAILS)."""
+    e = [x for x in expectancies if x is not None and np.isfinite(x)]
+    return float(np.mean([x > 0 for x in e])) if e else None
+
+
 def run_trial(hid: str, symbol: str, tf: str, split: str, params: dict, signal_fn, note: str = "",
               control: bool = True, lookahead_check: bool = True, save: bool = True) -> dict:
     pp = protocol_params()
@@ -32,28 +61,32 @@ def run_trial(hid: str, symbol: str, tf: str, split: str, params: dict, signal_f
         registry.assert_hold_available(hid, symbol, tf, params)     # fail BEFORE touching the sealed data
     df, es, ee, entry = load_with_context(symbol, tf, split, hid=hid if split == "hold" else None)
     specs = load_specs(symbol)
-    scen = build_scenarios(symbol, specs, pp)
-    fb = fallback_spread_px(symbol, pp)
-    fn = lambda d: signal_fn(d, **params)
-    if lookahead_check:
-        lc = pp["lookahead_check"]
-        bad = check_no_lookahead(fn, df, lc["n_checks"], lc["seed"])
-        if bad:
-            raise LookaheadError(f"{hid}: signal function changes when future bars are removed: {bad[0]}")
-    sigs = fn(df)
-    results = {name: run_backtest(df, sigs, cm, es, ee, fb) for name, cm in scen.items()}
-    metrics = {name: trade_metrics(r.trades) for name, r in results.items()}
-    base_tr = results["base"].trades
-    bs = cluster_bootstrap(base_tr, pp["bootstrap"]["n"], pp["bootstrap"]["seed"], pp["bootstrap"]["cluster"])
-    ctrl = matched_control(df, sigs, scen["base"], es, ee, pp["control"]["n_reps"], pp["control"]["seed"], fb) if control else {}
-    m_family = max(registry.trial_count(("dev", "valid")) + 1, 1)
-    summary = {**metrics["base"], **{f"p_raw": bs["p_raw"], "ci_low": bs["ci_low"], "ci_high": bs["ci_high"]},
-               "p_adjusted": adjust_p(bs["p_raw"], m_family, pp["multiple_testing"]["method"]), "m_family": m_family,
-               "p_vs_control": ctrl.get("p_vs_control"), "edge_vs_control_R": ctrl.get("diff"),
-               "scenarios": {k: {"expectancy_R_net": v.get("expectancy_R_net"), "profit_factor_net": v.get("profit_factor_net"),
-                                 "n_trades": v.get("n_trades")} for k, v in metrics.items()},
-               "positive_year_share": positive_year_share(base_tr), "rejects": results["base"].rejects,
-               "warnings": results["base"].warnings, "specs_assumed": bool(specs.get("assumed", False))}
+    try:
+        scen = build_scenarios(symbol, specs, pp)
+        fb = fallback_spread_px(symbol, pp)
+        fn = lambda d: signal_fn(d, **params)
+        if lookahead_check:
+            lc = pp["lookahead_check"]
+            bad = check_no_lookahead(fn, df, lc["n_checks"], lc["seed"])
+            if bad:
+                raise LookaheadError(f"{hid}: signal function changes when future bars are removed: {bad[0]}")
+        sigs = fn(df)
+        results = {name: run_backtest(df, sigs, cm, es, ee, fb) for name, cm in scen.items()}
+        metrics = {name: trade_metrics(r.trades) for name, r in results.items()}
+        base_tr = results["base"].trades
+        bs = cluster_bootstrap(base_tr, pp["bootstrap"]["n"], pp["bootstrap"]["seed"], pp["bootstrap"]["cluster"])
+        ctrl = matched_control(df, sigs, scen["base"], es, ee, pp["control"]["n_reps"], pp["control"]["seed"], fb) if control else {}
+        m_family = max(registry.trial_count(("dev", "valid")) + 1, 1)      # counts aborted attempts too
+        summary = {**metrics["base"], **{f"p_raw": bs["p_raw"], "ci_low": bs["ci_low"], "ci_high": bs["ci_high"], "n_clusters": bs.get("n_clusters")},
+                   "p_adjusted": adjust_p(bs["p_raw"], m_family, pp["multiple_testing"]["method"]), "m_family": m_family,
+                   "p_vs_control": ctrl.get("p_vs_control"), "edge_vs_control_R": ctrl.get("diff"), "control_diag": ctrl,
+                   "scenarios": {k: {"expectancy_R_net": v.get("expectancy_R_net"), "profit_factor_net": v.get("profit_factor_net"),
+                                     "n_trades": v.get("n_trades")} for k, v in metrics.items()},
+                   "positive_year_share": positive_year_share(base_tr), "rejects": results["base"].rejects,
+                   "warnings": results["base"].warnings, "specs_assumed": bool(specs.get("assumed", False))}
+    except Exception as ex:      # a failed attempt is still an attempt: it is logged and counted in the multiple-testing family
+        _log_aborted(hid, symbol, tf, split, params, entry, note, ex)
+        raise
     ev = registry.log_trial(hid, symbol, tf, split, params, summary, data_source=entry["source"], note=note,
                             synthetic=entry["synthetic"])
     out = {"trial_seq": ev["seq"], "summary": summary, "trades": base_tr, "by_year": by_year(base_tr), "results": results,

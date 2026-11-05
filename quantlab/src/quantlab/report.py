@@ -57,9 +57,20 @@ def evaluate_valid(summary: dict, dev_summary: dict | None = None, neighbor_posi
     if dev_summary is not None:
         checks["dev_positive"] = (_g(dev_summary, "expectancy_R_net") > 0, f"DEV expectancy {_g(dev_summary, 'expectancy_R_net'):.3f}R")
     passed = all(ok for ok, _ in checks.values())
+    n = _g(summary, "n_trades", 0)
     positive = _g(summary, "expectancy_R_net") > 0
-    cls = "ACCEPTED_FOR_HOLD" if passed else ("PROMISING_UNPROVEN" if positive and _g(summary, "n_trades", 0) > 0 else "REJECTED")
-    return {"classification": cls, "passed": passed, "checks": {k: {"ok": bool(v[0]), "detail": v[1]} for k, v in checks.items()}}
+    insufficient = n < c["min_trades"]
+    failed = [k for k, (ok, _) in checks.items() if not ok]
+    if passed:
+        cls = "ACCEPTED_FOR_HOLD"
+    elif insufficient:
+        cls = "UNPROVEN_INSUFFICIENT_SAMPLE"      # whatever the sign of the result: too few trades to say anything
+    elif positive:
+        cls = "UNPROVEN"                         # looks profitable but at least one mandatory criterion fails
+    else:
+        cls = "REJECTED"                         # enough trades and no positive net expectancy
+    return {"classification": cls, "passed": passed, "failed_criteria": failed, "insufficient_sample": bool(insufficient),
+            "checks": {k: {"ok": bool(v[0]), "detail": v[1]} for k, v in checks.items()}}
 
 
 def evaluate_hold(summary: dict) -> dict:
@@ -85,6 +96,14 @@ def trial_report_md(hid: str, symbol: str, tf: str, split: str, run: dict, verdi
     keys = ["win_rate", "profit_factor_net", "expectancy_R_net", "expectancy_R_gross", "avg_win_R", "avg_loss_R", "total_R_net",
             "max_drawdown_R", "max_losing_streak", "avg_bars_held", "avg_cost_R", "median_cost_pct_of_stop", "p90_cost_pct_of_stop",
             "p_raw", "p_adjusted", "p_vs_control", "ci_low", "ci_high"]
+    if s.get("ci_low") is not None and s.get("n_clusters"):
+        L += [f"95% CI of mean net R per trade (monthly-cluster bootstrap, {s['n_clusters']} monthly clusters): "
+              f"[{s['ci_low']:.3f}, {s['ci_high']:.3f}]R" + (" - includes zero" if s["ci_low"] <= 0 <= s["ci_high"] else ""), ""]
+    cd = s.get("control_diag") or {}
+    if cd.get("n_reps"):
+        L += [f"Matched control: real mean {cd['signal_mean']:.3f}R vs control mean {cd['control_mean']:.3f}R "
+              f"(trades {cd['real_trades']} vs {cd['control_trades_mean']:.0f}; bars held {cd['real_bars_held']:.1f} vs "
+              f"{cd['control_bars_held']:.1f}; strata used {cd['strata_levels_used']})", ""]
     L += ["## Metrics (net of costs, base scenario)", "", "| metric | value |", "|---|---|"]
     for k in keys:
         if k in s and s[k] is not None:

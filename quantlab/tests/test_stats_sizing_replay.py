@@ -196,7 +196,7 @@ def test_end_to_end_pipeline_and_gates(lab):
     assert v["eval"][0] == pd.Timestamp("2019-01-01")
     assert v["trades"]["entry_time"].min() >= pd.Timestamp("2019-01-01") and v["trades"]["entry_time"].max() < pd.Timestamp("2019-07-01")
     verdict = evaluate_valid(v["summary"], dev_summary=s)
-    assert verdict["classification"] in ("REJECTED", "PROMISING_UNPROVEN", "ACCEPTED_FOR_HOLD")
+    assert verdict["classification"] in ("REJECTED", "UNPROVEN", "UNPROVEN_INSUFFICIENT_SAMPLE", "ACCEPTED_FOR_HOLD")
     md = trial_report_md("DON1", "XAUUSD", "H4", "valid", v, verdict)
     assert "Verdict" in md and "Cost scenarios" in md
     registry.record_verdict("DON1", "valid", verdict["passed"], verdict)
