@@ -242,6 +242,9 @@ def test_family_table_keeps_raw_p_and_recomputes_holm_over_the_complete_family(l
     # Holm with m = 5 (the aborted trial counts): sorted p -> 0.001*5, 0.02*4, 0.04*3, 0.30*2, with running max
     h = dict(zip(t["p_raw"].round(4), t["p_holm"]))
     assert h[0.001] == pytest.approx(0.005) and h[0.02] == pytest.approx(0.08) and h[0.04] == pytest.approx(0.12) and h[0.3] == pytest.approx(0.6)
+    ab = t[t["kind"] == "aborted"].iloc[0]
+    assert np.isnan(ab["p_raw"]) and ab["p_holm"] == 1.0 and ab["p_bonferroni"] == 1.0        # missing p: raw empty, adjusted = 1
+    assert t["p_holm"].notna().all() and t["p_bonferroni"].notna().all()
     with pytest.raises(registry.RegistryError, match="PROVISIONAL|open"):
         registry.final_adjusted_p(int(t["seq"].iloc[0]))                          # no final value before the family is closed
     registry.close_family("complete")
@@ -416,29 +419,20 @@ def _ar_series(n, phi, seed):
                          "tick_volume": 1, "spread": 0, "real_volume": 0})
 
 
-def test_autocorrelated_null_series_is_calibrated_and_gives_no_false_edge():
-    """Strongly autocorrelated prices (AR(1) returns, phi = 0.8); 'events' = randomly placed bars (NO edge by construction),
-    de-duplicated like real events. Measured while building this fix (120 series): with the gap-constrained control
-    P(p<=0.10) = 0.117, P(p<=0.05) = 0.067 (nominal 0.10 / 0.05); the old independent-draw control gave 0.050 / 0.008, i.e. it
-    was badly mis-calibrated (far too conservative). The test pins calibration on BOTH sides: no excess of small p-values (no false
-    edge) and no deficit (the comparison is not a looser/stricter game than the one the real events play)."""
-    from quantlab.patterns import event_arrays, Ev
-    ps = []
-    for seed in range(120):
-        df = _ar_series(1600, 0.8, seed)
-        rng = np.random.default_rng(1000 + seed)
-        raw = np.sort(rng.choice(np.arange(60, 1550), size=140, replace=False))
-        idx, _ = event_arrays([Ev(int(i), 1, 0.0) for i in raw])
-        t = pd.to_datetime(df["time"])
-        tab = event_study(df, idx, 1, horizons=(5,), eval_start=t.iloc[0], eval_end=t.iloc[-1] + H4, n_ctrl=400, primary_h=5,
-                          n_ctrl_primary=400, bar_td=H4, seed=seed)
-        r = tab.iloc[0]
-        assert r["control_coverage"] > 0.9
-        ps.append(r["p_vs_random"])
-    ps = np.array(ps)
-    assert 0.04 <= (ps <= 0.10).mean() <= 0.19          # nominal 0.10 (binomial sd of 120 series ~ 0.027)
-    assert 0.02 <= (ps <= 0.05).mean() <= 0.12          # nominal 0.05
-    assert 0.35 <= ps.mean() <= 0.65
+def test_autocorrelated_null_series_is_calibrated_1000_series():
+    """1000 independent synthetic null series (AR(1) returns, phi = 0.8, H4, 1600 bars; 'events' = random bars de-duplicated to gap >= 5,
+    no edge by construction; 400 control sets; series seed k, event seed 1000+k, k = 0..999; see quantlab.calibration.CalibConfig).
+    Full results with confidence intervals for phi = 0.0 / 0.5 / 0.8 and for the OLD independent-draw control:
+    docs/CONTROL_CALIBRATION.md (scripts/control_calibration.py).  Bounds below were fixed in advance as regression guards:
+    no excess of small p-values (no false edge) and no deficit (old control gave 0.055 / 0.025)."""
+    from quantlab.calibration import CalibConfig, run_calibration, summarize
+    cfg = CalibConfig(n_series=1000, phi=0.8)
+    res = summarize(run_calibration(cfg, procs=2))
+    r10, r05 = res["alpha_0.1"], res["alpha_0.05"]
+    assert res["min_coverage"] == 1.0                                   # every study built a complete control
+    assert 0.08 <= r10["rate"] <= 0.14 and r10["ci99"][0] <= 0.10 <= r10["ci99"][1]
+    assert 0.04 <= r05["rate"] <= 0.09
+    assert 0.45 <= res["mean_p"] <= 0.56
 
 
 def test_planted_edge_is_still_detected_with_the_gap_constrained_control():
@@ -473,10 +467,16 @@ def test_unbuildable_control_logs_a_trial_with_missing_p_and_can_never_pass_the_
     s = r["summary"]
     assert r["trial_seq"] is not None and s["kind"] == "event_study" and s["n_events"] > 100
     assert s["control_complete"] is False and s["p_raw"] is None and "INCOMPLETE" in s["control_warning"]
+    assert s["evaluation_status"] == "NOT_EVALUABLE_CONTROL_INFEASIBLE" and s["evaluation_status"] != "REJECTED"
     assert not event_screen_passed(s)
     t = registry.family_table()
     row = t[t["seq"] == r["trial_seq"]].iloc[0]
-    assert np.isnan(row["p_raw"]) and len(t) == registry.trial_count(("dev", "valid"))            # counted in m, p treated as missing
-    good = dict(s, control_complete=True, p_raw=0.04, edge_ATR=0.1)
+    assert np.isnan(row["p_raw"]) and len(t) == registry.trial_count(("dev", "valid"))            # counted in m, p_raw stays empty
+    assert row["evaluation"] == "NOT_EVALUABLE_CONTROL_INFEASIBLE"
+    assert row["p_holm"] == 1.0 and row["p_bonferroni"] == 1.0                                    # ...but its adjusted p is 1
+    registry.close_family("t")
+    assert registry.final_adjusted_p(r["trial_seq"]) == 1.0
+    good = dict(s, evaluation_status="EVALUATED", control_complete=True, p_raw=0.04, edge_ATR=0.1)
     assert event_screen_passed(good) and not event_screen_passed(dict(good, p_raw=0.2)) and not event_screen_passed(dict(good, edge_ATR=-0.1))
     assert not event_screen_passed(dict(good, n_events=29)) and not event_screen_passed(dict(good, control_complete=False))
+    assert not event_screen_passed(dict(good, evaluation_status="NOT_EVALUABLE_CONTROL_INFEASIBLE"))

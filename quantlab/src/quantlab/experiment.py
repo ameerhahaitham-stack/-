@@ -21,6 +21,7 @@ from .events import event_study
 from .stats import adjust_p, by_year, cluster_bootstrap, label_regimes, by_regime, positive_year_share, trade_metrics
 
 
+NOT_EVALUABLE = "NOT_EVALUABLE_CONTROL_INFEASIBLE"   # stage-1 status when the matched non-overlapping control cannot be built (NOT a rejection)
 EVENT_MIN_EVENTS = 30      # pre-declared in docs/HYPOTHESES_DEV_PLAN.md (a property of the definition, not of any outcome)
 
 
@@ -93,10 +94,13 @@ def run_event_study(hid: str, symbol: str, tf: str, pattern_fn, params: dict | N
                           bar_td=bar_td, min_gap=EVENT_MIN_GAP)
         row = {k: (None if isinstance(v, float) and not np.isfinite(v) else v)
                for k, v in tab[tab["horizon"] == primary_h].iloc[0].to_dict().items()}        # NaN -> None (control could not be built)
-        summary = {"kind": "event_study", "primary_horizon": primary_h, "n_events_raw": int(len(evs)), "n_events": int(row.get("n", 0)),
+        evaluable = bool(row.get("control_complete")) and row.get("p_vs_random") is not None
+        summary = {"kind": "event_study", "evaluation_status": "EVALUATED" if evaluable else NOT_EVALUABLE, "primary_horizon": primary_h, "n_events_raw": int(len(evs)), "n_events": int(row.get("n", 0)),
                    "n_control_candidates": row.get("n_control_candidates"),
                    "edge_ATR": row.get("edge_ATR"), "mean_ATR": row.get("mean_ATR"), "hit_rate": row.get("hit_rate"),
-                   "p_vs_random": row.get("p_vs_random"), "p_raw": row.get("p_vs_random"), "n_ctrl_used": row.get("n_ctrl"),
+                   "p_vs_random": row.get("p_vs_random") if evaluable else None,
+                   "p_raw": row.get("p_vs_random") if evaluable else None,            # None => counted as p = 1 in the family Holm
+                   "p_incomplete_control_diagnostic": None if evaluable else row.get("p_vs_random"), "n_ctrl_used": row.get("n_ctrl"),
                    "p_resolution": row.get("p_resolution"), "n_ctrl_requested": row.get("n_ctrl_requested"),
                    "control_coverage": row.get("control_coverage"), "control_placement_success": row.get("control_placement_success"),
                    "control_complete": row.get("control_complete"),

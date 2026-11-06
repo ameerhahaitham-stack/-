@@ -23,7 +23,7 @@ def event_screen_passed(summary: dict) -> bool:
     """Stage-1 screen (thresholds exactly as registered in EVENT_SCREEN) plus the validity precondition that the random comparison
     was actually built (control_complete). A pair whose control could not be built has p = None and can never pass."""
     s, e = EVENT_SCREEN, summary
-    if e.get("kind") != "event_study" or not e.get("control_complete") or e.get("p_raw") is None or e.get("edge_ATR") is None:
+    if e.get("kind") != "event_study" or e.get("evaluation_status") == "NOT_EVALUABLE_CONTROL_INFEASIBLE" or not e.get("control_complete") or e.get("p_raw") is None or e.get("edge_ATR") is None:
         return False
     return e["n_events"] >= s["min_events"] and e["edge_ATR"] > s["min_edge_ATR"] and e["p_raw"] <= s["max_p"]
 

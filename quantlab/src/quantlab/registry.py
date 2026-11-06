@@ -231,7 +231,8 @@ def family_table() -> pd.DataFrame:
     """Raw p of EVERY DEV/VALID trial plus the family-wide corrections.
 
     Holm step-down over the whole family: m = all logged DEV+VALID trials (event studies, strategy trials, aborted attempts);
-    trials without a p-value count as p = 1. The corrections are FINAL only after `close_family()`; before that they are
+    a trial without a p-value (aborted attempt, or a comparison that could not be built) keeps p_raw EMPTY but its adjusted values
+    are p = 1 (p_holm = p_bonferroni = 1.0): it stays in the family and counts in m. The corrections are FINAL only after `close_family()`; before that they are
     labelled PROVISIONAL and must not be used as results."""
     from .stats import holm
     ev = [e for e in read_events() if e["type"] == "trial" and e["split"] in ("dev", "valid")]
@@ -241,14 +242,15 @@ def family_table() -> pd.DataFrame:
         p = m.get("p_raw")
         rows.append({"seq": e["seq"], "hid": e["hid"], "symbol": e["symbol"], "tf": e["tf"], "split": e["split"],
                      "kind": m.get("kind", "aborted" if m.get("aborted") else "strategy"), "p_raw": p if p is not None else np.nan,
+                     "evaluation": m.get("evaluation_status", "ABORTED" if m.get("aborted") else ("EVALUATED" if p is not None else "NO_P")),
                      "p_staged_at_run": m.get("p_adjusted_provisional")})
     df = pd.DataFrame(rows)
     if df.empty:
         return df.assign(p_holm=[], p_bonferroni=[], status=[])
     has = df["p_raw"].notna().to_numpy()
     m_all = len(df)
-    df["p_bonferroni"] = np.where(has, np.minimum(df["p_raw"].fillna(1.0) * m_all, 1.0), np.nan)
-    holm_adj = np.full(len(df), np.nan)
+    df["p_bonferroni"] = np.minimum(df["p_raw"].fillna(1.0) * m_all, 1.0)          # missing p -> 1
+    holm_adj = np.ones(len(df))                                                    # missing p -> adjusted p = 1
     if has.any():
         holm_adj[has] = holm(df.loc[has, "p_raw"].to_numpy(float), m_all)
     df["p_holm"] = holm_adj
@@ -257,13 +259,13 @@ def family_table() -> pd.DataFrame:
 
 
 def final_adjusted_p(seq: int) -> float:
-    """Holm-adjusted p of one logged trial over the COMPLETE family. Refuses before the family is closed."""
+    """Holm-adjusted p of one logged trial over the COMPLETE family (1.0 if the trial has no p). Refuses before the family is closed."""
     if not family_closed():
         raise RegistryError("the family is still open: corrections computed now are PROVISIONAL. Run close_family() first.")
     t = family_table()
     r = t[t["seq"] == seq]
-    if r.empty or not np.isfinite(r["p_holm"].iloc[0]):
-        raise RegistryError(f"trial seq {seq} has no p-value in the family")
+    if r.empty:
+        raise RegistryError(f"trial seq {seq} is not in the family")
     return float(r["p_holm"].iloc[0])
 
 
