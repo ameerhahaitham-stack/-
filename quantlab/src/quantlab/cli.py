@@ -144,6 +144,20 @@ def cmd_status(a) -> int:
     return 0
 
 
+def cmd_family_report(a) -> int:
+    from .report import family_report_md, write_text
+    md = family_report_md()
+    out = write_text(root() / "reports" / "family_report.md", md)
+    print(md[:3000])
+    print(f"\nsaved: {out}")
+    return 0
+
+
+def cmd_close_family(a) -> int:
+    print(registry.close_family(a.note or ""))
+    return 0
+
+
 def cmd_synth(a) -> int:
     from .synth import make_all
     out = Path(a.out)
@@ -161,6 +175,8 @@ def main(argv=None) -> int:
     s = sub.add_parser("calc-check"); s.add_argument("--file", required=True); s.set_defaults(fn=cmd_calc_check)
     s = sub.add_parser("audit-hold"); s.set_defaults(fn=cmd_audit_hold)
     s = sub.add_parser("status"); s.set_defaults(fn=cmd_status)
+    s = sub.add_parser("family-report"); s.set_defaults(fn=cmd_family_report)
+    s = sub.add_parser("close-family"); s.add_argument("--note"); s.set_defaults(fn=cmd_close_family)
     s = sub.add_parser("synth"); s.add_argument("--out", required=True); s.add_argument("--start", default="2018-01-01"); s.add_argument("--end", default="2025-06-30"); s.set_defaults(fn=cmd_synth)
     a = ap.parse_args(argv)
     return a.fn(a)

@@ -182,7 +182,7 @@ def test_end_to_end_pipeline_and_gates(lab):
         data.load_with_context("XAUUSD", "H4", "hold")
     run = run_trial("DON1", "XAUUSD", "H4", "dev", {"n": 20, "k": 2.0, "rr": 2.0}, donchian)
     s = run["summary"]
-    assert s["n_trades"] > 20 and "p_adjusted" in s and set(s["scenarios"]) == {"optimistic", "base", "pessimistic", "stress"}
+    assert s["n_trades"] > 20 and "p_adjusted_provisional" in s and set(s["scenarios"]) == {"optimistic", "base", "pessimistic", "stress"}
     assert s["scenarios"]["optimistic"]["expectancy_R_net"] >= s["scenarios"]["stress"]["expectancy_R_net"]
     assert s["avg_cost_R"] > 0 and s["m_family"] == 1
     assert list((root() / "results" / "DON1").glob("dev_*_trades.csv"))
@@ -195,7 +195,9 @@ def test_end_to_end_pipeline_and_gates(lab):
     v = run_trial("DON1", "XAUUSD", "H4", "valid", {"n": 20, "k": 2.0, "rr": 2.0}, donchian)
     assert v["eval"][0] == pd.Timestamp("2019-01-01")
     assert v["trades"]["entry_time"].min() >= pd.Timestamp("2019-01-01") and v["trades"]["entry_time"].max() < pd.Timestamp("2019-07-01")
-    verdict = evaluate_valid(v["summary"], dev_summary=s)
+    registry.close_family("test: all DEV+VALID trials done")
+    seq = [t["seq"] for t in registry.read_events() if t["type"] == "trial" and t["split"] == "valid"][-1]
+    verdict = evaluate_valid(v["summary"], dev_summary=s, final_adjusted_p=registry.final_adjusted_p(seq))
     assert verdict["classification"] in ("REJECTED", "UNPROVEN", "UNPROVEN_INSUFFICIENT_SAMPLE", "ACCEPTED_FOR_HOLD")
     md = trial_report_md("DON1", "XAUUSD", "H4", "valid", v, verdict)
     assert "Verdict" in md and "Cost scenarios" in md
@@ -214,6 +216,7 @@ def test_hold_flow_opens_once_and_only_after_valid_pass(lab):
     run_trial("DON2", "XAUUSD", "H4", "dev", p, donchian)
     registry.freeze_hypothesis("DON2", [{"symbol": "XAUUSD", "tf": "H4", "params": p}])
     run_trial("DON2", "XAUUSD", "H4", "valid", p, donchian)
+    registry.close_family("test")
     registry.record_verdict("DON2", "valid", True, {"note": "forced pass to test the HOLD gate"})
     registry.request_hold("DON2")
     h = run_trial("DON2", "XAUUSD", "H4", "hold", p, donchian)

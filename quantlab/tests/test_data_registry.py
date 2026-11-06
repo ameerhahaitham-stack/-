@@ -136,6 +136,7 @@ def test_lifecycle_freeze_valid_hold_rules(lab):
     registry.log_trial("H2", "EURUSD", "D1", "valid", {"n": 20}, {"n_trades": 8}, "src")
     with pytest.raises(registry.RegistryError):                # HOLD needs valid_pass
         registry.request_hold("H2")
+    registry.close_family("test")
     registry.record_verdict("H2", "valid", True)
     registry.request_hold("H2")
     with pytest.raises(registry.RegistryError):                # one-shot
@@ -149,6 +150,7 @@ def test_failed_hypothesis_can_never_open_hold(lab):
     registry.lock_protocol()
     registry.register_hypothesis("H3", "fam", "d")
     registry.freeze_hypothesis("H3", [{"symbol": "EURUSD", "tf": "D1", "params": {}}])
+    registry.close_family("test")
     registry.record_verdict("H3", "valid", False)
     with pytest.raises(registry.RegistryError):
         registry.request_hold("H3")
