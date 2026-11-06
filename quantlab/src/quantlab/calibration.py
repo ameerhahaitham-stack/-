@@ -97,3 +97,86 @@ def summarize(df: pd.DataFrame, alphas=(0.10, 0.05)) -> dict:
 
 def config_dict(cfg: CalibConfig) -> dict:
     return asdict(cfg)
+
+
+# =====================================================================================================================
+# TAIL calibration (review round 4): do small p-values (0.001 - 0.005) of the event-study control behave like null p-values?
+# Synthetic data only. Two independent p-values per study on the SAME series and the SAME event set:
+#   p_prod : the production path  events.event_study(...)  (gap-constrained, stratum-matched control, 20000 draws, adaptive 200000)
+#   p_ref  : an EXACT randomization p-value from the null's own generator G (no strata, no control sampler): the observed event
+#            set is one more draw from G, so it is exchangeable with R_ref reference draws and p_ref is (super-)uniform by construction.
+# G = "draw n_raw bar positions iid uniform on [60, n_bars-50), sort, greedy de-duplicate with min gap 5" (same rule as event_arrays).
+# =====================================================================================================================
+@dataclass(frozen=True)
+class TailConfig:
+    phi: float = 0.8
+    n_series: int = 20000
+    n_bars: int = 1600
+    sigma: float = 3.0
+    n_raw_events: int = 140
+    horizon: int = 5
+    n_ctrl_primary: int = 20000        # production defaults of event_study
+    refine_below: float = 0.005
+    n_ctrl_refine: int = 200000
+    r_ref: int = 20000                 # reference draws of G per study (exact p_ref, resolution 1/20001)
+    series_seed0: int = 100_000        # series k: seed series_seed0 + k  (also the event_study control seed)
+    event_seed0: int = 3_000_000       # observed event set of series k: seed event_seed0 + k
+    ref_seed0: int = 5_000_000         # reference draws of series k: seed ref_seed0 + k
+    min_gap: int = 5
+
+
+def dedupe_mask(x: np.ndarray, gap: int = 5) -> np.ndarray:
+    """Vectorised greedy de-duplication of SORTED position rows: identical to patterns.event_arrays applied to each row."""
+    last = np.full(x.shape[0], -10**9, dtype=np.int64)
+    mask = np.zeros(x.shape, dtype=bool)
+    for j in range(x.shape[1]):
+        keep = (x[:, j] - last) >= gap
+        mask[:, j] = keep
+        last = np.where(keep, x[:, j], last)
+    return mask
+
+
+def draw_sets(rng, n_sets: int, lo: int, hi: int, n_raw: int, gap: int):
+    x = np.sort(rng.integers(lo, hi, size=(n_sets, n_raw)), axis=1)
+    return x, dedupe_mask(x, gap)
+
+
+def tail_study(cfg: TailConfig, k: int) -> dict:
+    from .engine import atr
+    df = ar_series(cfg.n_bars, cfg.phi, cfg.series_seed0 + k, cfg.sigma)
+    t = pd.to_datetime(df["time"])
+    o, c, a = df["open"].to_numpy(float), df["close"].to_numpy(float), atr(df, 14)
+    h, lo, hi = cfg.horizon, 60, cfg.n_bars - 50
+    raw_all = np.full(len(df), np.nan)
+    ii = np.arange(lo, hi)
+    raw_all[ii] = (c[ii + h] - o[ii + 1]) / a[ii]
+    # observed (null) event set = one draw of G
+    x0, m0 = draw_sets(np.random.default_rng(cfg.event_seed0 + k), 1, lo, hi, cfg.n_raw_events, cfg.min_gap)
+    idx = x0[0][m0[0]]
+    obs = float(raw_all[idx].mean())
+    # exact reference p-value
+    xr, mr = draw_sets(np.random.default_rng(cfg.ref_seed0 + k), cfg.r_ref, lo, hi, cfg.n_raw_events, cfg.min_gap)
+    ref = (np.where(mr, raw_all[xr], 0.0).sum(axis=1)) / mr.sum(axis=1)
+    p_ref = (1 + int((ref >= obs).sum())) / (1 + cfg.r_ref)
+    # production p-value
+    r = event_study(df, idx, 1, horizons=(h,), eval_start=t.iloc[0], eval_end=t.iloc[-1] + H4, n_ctrl=2000, primary_h=h,
+                    n_ctrl_primary=cfg.n_ctrl_primary, refine_below=cfg.refine_below, n_ctrl_refine=cfg.n_ctrl_refine,
+                    bar_td=H4, seed=cfg.series_seed0 + k, min_gap=cfg.min_gap).iloc[0]
+    assert abs(r["mean_ATR"] - obs) < 1e-9, (r["mean_ATR"], obs)          # both paths measure the same statistic on the same events
+    return {"k": k, "n_events": int(len(idx)), "obs": obs, "p_prod": float(r["p_vs_random"]), "p_ref": float(p_ref),
+            "coverage": float(r["control_coverage"]), "n_ctrl_used": int(r["n_ctrl"]), "refined": bool(r["n_ctrl_requested"] > cfg.n_ctrl_primary)}
+
+
+def _tail_worker(args):
+    cfg, ks = args
+    return [tail_study(cfg, k) for k in ks]
+
+
+def run_tail_block(cfg: TailConfig, ks: list[int], procs: int = 2) -> list[dict]:
+    if procs <= 1:
+        return _tail_worker((cfg, ks))
+    from multiprocessing import Pool
+    chunks = [ks[i::procs] for i in range(procs)]
+    with Pool(procs) as pool:
+        parts = pool.map(_tail_worker, [(cfg, c) for c in chunks])
+    return sorted([r for part in parts for r in part], key=lambda r: r["k"])

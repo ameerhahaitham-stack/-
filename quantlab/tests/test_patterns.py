@@ -480,3 +480,22 @@ def test_unbuildable_control_logs_a_trial_with_missing_p_and_can_never_pass_the_
     assert event_screen_passed(good) and not event_screen_passed(dict(good, p_raw=0.2)) and not event_screen_passed(dict(good, edge_ATR=-0.1))
     assert not event_screen_passed(dict(good, n_events=29)) and not event_screen_passed(dict(good, control_complete=False))
     assert not event_screen_passed(dict(good, evaluation_status="NOT_EVALUABLE_CONTROL_INFEASIBLE"))
+
+
+# ---------------------------------------------------------------- tail-calibration machinery (review round 4)
+def test_tail_generator_dedupe_is_identical_to_event_arrays():
+    from quantlab.calibration import draw_sets
+    from quantlab.patterns import event_arrays, Ev
+    x, m = draw_sets(np.random.default_rng(1), 200, 60, 1550, 140, 5)
+    for r in range(200):
+        assert np.array_equal(x[r][m[r]], event_arrays([Ev(int(i), 1, 0.0) for i in x[r]])[0])
+
+
+def test_tail_study_measures_the_same_statistic_on_both_paths_and_is_reproducible():
+    from quantlab.calibration import TailConfig, tail_study
+    cfg = TailConfig(n_series=3, r_ref=500, n_ctrl_primary=500, refine_below=0.0)
+    a = [tail_study(cfg, k) for k in range(3)]          # tail_study asserts production and reference use the identical statistic
+    b = [tail_study(cfg, k) for k in range(3)]
+    assert a == b                                        # fixed seeds -> identical raw results
+    for r in a:
+        assert 0 < r["p_prod"] <= 1 and 0 < r["p_ref"] <= 1 and r["coverage"] == 1.0 and r["n_events"] > 60
