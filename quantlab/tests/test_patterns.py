@@ -15,6 +15,9 @@ from test_integrity import _frame
 from test_stats_sizing_replay import _setup
 
 
+H4 = pd.Timedelta(hours=4)
+
+
 def _trendy(n=2500, seed=21):
     rng = np.random.default_rng(seed)
     t = pd.date_range("2018-01-01", periods=n, freq="4h")
@@ -125,14 +128,14 @@ def test_eligibility_excludes_events_without_a_full_horizon_at_the_window_end():
     t = pd.to_datetime(df["time"])
     ee = t.iloc[-1] + pd.Timedelta(hours=4)             # window ends right after the last bar (like DEV end)
     for h in (1, 3, 5, 10, 20):
-        ok = eligible(df, h, t.iloc[0], ee)
+        ok = eligible(df, h, t.iloc[0], ee, H4)
         last_ok = np.where(ok)[0].max()
         assert last_ok == len(df) - 1 - h                # bar i needs bar i+h to exist
         assert not ok[len(df) - h:].any()                # the last h bars can never be events
         assert ok[len(df) - 1 - h]                       # ...and the last bar WITH a full horizon is still eligible
     # an evaluation window that ends BEFORE the data does: horizon bar must open before eval_end
     ee2 = t.iloc[300]
-    ok5 = eligible(df, 5, t.iloc[0], ee2)
+    ok5 = eligible(df, 5, t.iloc[0], ee2, H4)
     assert (t.iloc[np.where(ok5)[0] + 5] < ee2).all() and (t.iloc[np.where(ok5)[0] + 1] < ee2).all()
     assert not ok5[300 - 5:].any()
 
@@ -166,11 +169,11 @@ def test_events_and_control_use_the_same_eligibility_rule_per_horizon(monkeypatc
     horizons = (1, 5, 20)
     tab = event_study(df, idx, 1, horizons=horizons, eval_start=es, eval_end=ee, n_ctrl=40, primary_h=5, n_ctrl_primary=40)
     for k, h in enumerate(horizons):
-        exp_window = np.where(eligible(df, h, es, ee))[0]
+        exp_window = np.where(eligible(df, h, es, ee, H4))[0]
         assert np.array_equal(seen[k], exp_window)                    # control candidates == eligible bars for THIS horizon
         row = tab[tab["horizon"] == h].iloc[0]
         assert row["n_control_candidates"] == len(exp_window)
-        assert row["n"] == int(eligible(df, h, es, ee)[idx].sum())    # events filtered by the same mask
+        assert row["n"] == int(eligible(df, h, es, ee, H4)[idx].sum())    # events filtered by the same mask
     n_by_h = tab.set_index("horizon")["n"]
     assert n_by_h[1] >= n_by_h[5] >= n_by_h[20]                       # longer horizon -> never MORE eligible events
 
@@ -274,3 +277,206 @@ def test_valid_verdict_requires_closed_family(lab, monkeypatch):
         registry.record_verdict("F3", "valid", True)
     registry.close_family("x")
     registry.record_verdict("F3", "valid", False)
+
+
+# ---------------------------------------------------------------- bar CLOSE time at the DEV / VALID boundary (review round 2)
+def _bars(tf_hours, start, n, seed=5):
+    rng = np.random.default_rng(seed)
+    t = pd.date_range(start, periods=n, freq=f"{tf_hours}h")
+    c = 1000 + np.cumsum(rng.normal(0, 3, n))
+    o = np.r_[c[0], c[:-1]]
+    return pd.DataFrame({"time": t, "open": o, "high": np.maximum(o, c) + 1, "low": np.minimum(o, c) - 1, "close": c,
+                         "tick_volume": 1, "spread": 0, "real_volume": 0})
+
+
+@pytest.mark.parametrize("tf_hours,td", [(4, pd.Timedelta(hours=4)), (24, pd.Timedelta(days=1))])
+@pytest.mark.parametrize("h", [1, 3, 5])
+def test_horizon_bar_must_CLOSE_inside_dev_aligned_boundary(tf_hours, td, h):
+    """DEV ends at 2019-01-01 00:00. The df also holds VALID bars. A horizon bar that closes exactly AT the boundary is allowed;
+    the first VALID bar (opens at the boundary) never is - so no VALID movement is ever used by a DEV event."""
+    from quantlab.events import eligible
+    ee = pd.Timestamp("2019-01-01")
+    n_before = 300
+    df = _bars(tf_hours, ee - n_before * td, n_before + 80)
+    t = pd.to_datetime(df["time"])
+    first_valid = int(np.where(t >= ee)[0][0])                  # index of the first bar that opens at/after the boundary
+    assert first_valid == n_before and t.iloc[first_valid - 1] + td == ee      # last DEV bar closes exactly at the boundary
+    ok = eligible(df, h, t.iloc[0], ee, td)
+    last_i = np.where(ok)[0].max()
+    assert last_i + h == first_valid - 1                        # horizon bar = last DEV bar (closes AT ee): allowed
+    assert not ok[last_i + 1:].any()                            # nothing later, in particular no horizon bar from VALID
+    for i in np.where(ok)[0]:
+        assert t.iloc[i + h] + td <= ee and t.iloc[i + 1] < ee
+
+
+@pytest.mark.parametrize("tf_hours,td,ee", [(4, pd.Timedelta(hours=4), pd.Timestamp("2019-01-01 02:00")),
+                                             (24, pd.Timedelta(days=1), pd.Timestamp("2019-01-01 12:00"))])
+@pytest.mark.parametrize("h", [1, 5])
+def test_bar_that_opens_before_but_closes_after_the_boundary_is_not_eligible(tf_hours, td, ee, h):
+    """Boundary in the MIDDLE of a bar: that bar opens before ee but closes after it. The old open-time rule accepted it as a
+    horizon bar; the close-time rule must not (part of its movement belongs to the next period)."""
+    from quantlab.events import eligible
+    df = _bars(tf_hours, pd.Timestamp("2019-01-01") - 300 * td, 380)
+    t = pd.to_datetime(df["time"])
+    straddle = int(np.where((t < ee) & (t + td > ee))[0][0])
+    ok = eligible(df, h, t.iloc[0], ee, td)
+    open_rule = np.zeros(len(df), bool)
+    for i in range(len(df) - h):
+        open_rule[i] = (t.iloc[i + 1] < ee) and (t.iloc[i + h] < ee)
+    assert open_rule[straddle - h]                               # the OLD rule would have allowed using the straddling bar...
+    assert not ok[straddle - h]                                  # ...the new rule does not
+    assert np.where(ok)[0].max() + h == straddle - 1             # last allowed horizon bar closes at/before the boundary
+
+
+@pytest.mark.parametrize("tf_hours,td", [(4, pd.Timedelta(hours=4)), (24, pd.Timedelta(days=1))])
+def test_dev_event_study_is_blind_to_everything_after_the_boundary(tf_hours, td):
+    """Replace every bar from VALID by absurd prices: the DEV event study (events AND control) must not change at all."""
+    ee = pd.Timestamp("2019-01-01")
+    df = _bars(tf_hours, ee - 600 * td, 700, seed=9)
+    t = pd.to_datetime(df["time"])
+    idx = np.arange(40, 590, 7)
+    a = event_study(df, idx, 1, horizons=(1, 5), eval_start=t.iloc[0], eval_end=ee, n_ctrl=300, primary_h=5, n_ctrl_primary=300,
+                    bar_td=td)
+    df2 = df.copy()
+    post = t >= ee
+    for col in ("open", "high", "low", "close"):
+        df2.loc[post, col] = df2.loc[post, col] * 50 + 10_000
+    b = event_study(df2, idx, 1, horizons=(1, 5), eval_start=t.iloc[0], eval_end=ee, n_ctrl=300, primary_h=5, n_ctrl_primary=300,
+                    bar_td=td)
+    pd.testing.assert_frame_equal(a.drop(columns="control_warning"), b.drop(columns="control_warning"))
+    c = event_study(df[~post], idx, 1, horizons=(1, 5), eval_start=t.iloc[0], eval_end=ee, n_ctrl=300, primary_h=5, n_ctrl_primary=300,
+                    bar_td=td)                                                       # df physically truncated at the boundary
+    pd.testing.assert_frame_equal(a.drop(columns="control_warning"), c.drop(columns="control_warning"))
+
+
+# ---------------------------------------------------------------- control sets obey the real events' non-overlap rule (review round 2)
+def test_control_sets_never_repeat_a_bar_and_keep_the_minimum_gap():
+    from quantlab.events import _place_chunk
+    rng = np.random.default_rng(3)
+    n_bars, k, gap = 600, 40, 5
+    shared = np.arange(30, 570)
+    own = [np.arange(30, 570) if j % 3 else np.arange(100 + j, 400 + j) for j in range(k)]     # mixture of stratum pools
+    picks, ok = _place_chunk(own, 500, n_bars, gap, rng)
+    assert ok.mean() > 0.9
+    for d in np.where(ok)[0]:
+        row = picks[d]
+        assert len(set(row)) == k                                     # no bar used twice
+        assert all(row[j] in set(own[j]) for j in range(k))           # each control bar comes from its event's own pool
+        s = np.sort(row)
+        assert (np.diff(s) >= gap).all()                              # same non-overlap rule as event_arrays (gap >= 5)
+
+
+def test_control_gap_rule_is_the_same_constant_as_the_real_event_dedup():
+    from quantlab.patterns import EVENT_MIN_GAP, PRIMARY_HORIZON
+    import inspect
+    from quantlab import experiment
+    assert EVENT_MIN_GAP == PRIMARY_HORIZON == 5
+    assert "min_gap=EVENT_MIN_GAP" in inspect.getsource(experiment.run_event_study)
+
+
+def test_tight_control_is_redrawn_until_complete_and_still_valid():
+    """8 events packed exactly 5 bars apart in a short window: a single greedy placement fails ~40 % of the time, but fresh draws
+    complete the requested number of sets, so coverage is 1 and the per-attempt success rate (< 1) is reported honestly."""
+    df = _bars(4, "2018-01-01", 62, seed=4)
+    t = pd.to_datetime(df["time"])
+    tab = event_study(df, np.arange(12, 52, 5), 1, horizons=(1,), eval_start=t.iloc[0], eval_end=t.iloc[-1] + H4, n_ctrl=400, bar_td=H4)
+    r = tab.iloc[0]
+    assert r["control_coverage"] == 1.0 and r["control_complete"] and r["n_ctrl"] == 400
+    assert 0.2 < r["control_placement_success"] < 0.95
+
+
+def test_incomplete_control_is_reported_not_hidden():
+    """20 events packed exactly 5 bars apart in a 130-bar window: a random control with the same non-overlap rule essentially cannot
+    be built. The shortfall must show up as coverage << 1, an explicit warning with the numbers, complete=False; the table must not
+    pretend the comparison is complete."""
+    df = _bars(4, "2018-01-01", 130, seed=4)
+    t = pd.to_datetime(df["time"])
+    idx = np.arange(12, 112, 5)
+    tab = event_study(df, idx, 1, horizons=(1,), eval_start=t.iloc[0], eval_end=t.iloc[-1] + H4, n_ctrl=400, bar_td=H4)
+    r = tab.iloc[0]
+    assert r["control_coverage"] < 0.90 and not r["control_complete"]
+    assert "INCOMPLETE" in r["control_warning"] and "NOT a complete comparison" in r["control_warning"]
+    assert f"all {r['n']} events" in r["control_warning"] and f"{r['n_control_candidates']} eligible bars" in r["control_warning"]
+    assert r["n_ctrl"] == round(r["control_coverage"] * r["n_ctrl_requested"])          # p uses the built sets only
+    assert r["control_placement_success"] < 0.05
+    full = event_study(_bars(4, "2018-01-01", 1500, seed=4), np.arange(40, 1400, 25), 1, horizons=(1,), n_ctrl=300, bar_td=H4).iloc[0]
+    assert full["control_coverage"] == 1.0 and full["control_warning"] == "" and full["control_complete"]
+
+
+def _ar_series(n, phi, seed):
+    rng = np.random.default_rng(seed)
+    r = np.zeros(n)
+    e = rng.normal(0, 3, n)
+    for k in range(1, n):
+        r[k] = phi * r[k - 1] + e[k]                                  # strongly autocorrelated returns = persistent trends
+    c = 1000 + np.cumsum(r)
+    o = np.r_[c[0], c[:-1]]
+    t = pd.date_range("2018-01-01", periods=n, freq="4h")
+    return pd.DataFrame({"time": t, "open": o, "high": np.maximum(o, c) + 1, "low": np.minimum(o, c) - 1, "close": c,
+                         "tick_volume": 1, "spread": 0, "real_volume": 0})
+
+
+def test_autocorrelated_null_series_is_calibrated_and_gives_no_false_edge():
+    """Strongly autocorrelated prices (AR(1) returns, phi = 0.8); 'events' = randomly placed bars (NO edge by construction),
+    de-duplicated like real events. Measured while building this fix (120 series): with the gap-constrained control
+    P(p<=0.10) = 0.117, P(p<=0.05) = 0.067 (nominal 0.10 / 0.05); the old independent-draw control gave 0.050 / 0.008, i.e. it
+    was badly mis-calibrated (far too conservative). The test pins calibration on BOTH sides: no excess of small p-values (no false
+    edge) and no deficit (the comparison is not a looser/stricter game than the one the real events play)."""
+    from quantlab.patterns import event_arrays, Ev
+    ps = []
+    for seed in range(120):
+        df = _ar_series(1600, 0.8, seed)
+        rng = np.random.default_rng(1000 + seed)
+        raw = np.sort(rng.choice(np.arange(60, 1550), size=140, replace=False))
+        idx, _ = event_arrays([Ev(int(i), 1, 0.0) for i in raw])
+        t = pd.to_datetime(df["time"])
+        tab = event_study(df, idx, 1, horizons=(5,), eval_start=t.iloc[0], eval_end=t.iloc[-1] + H4, n_ctrl=400, primary_h=5,
+                          n_ctrl_primary=400, bar_td=H4, seed=seed)
+        r = tab.iloc[0]
+        assert r["control_coverage"] > 0.9
+        ps.append(r["p_vs_random"])
+    ps = np.array(ps)
+    assert 0.04 <= (ps <= 0.10).mean() <= 0.19          # nominal 0.10 (binomial sd of 120 series ~ 0.027)
+    assert 0.02 <= (ps <= 0.05).mean() <= 0.12          # nominal 0.05
+    assert 0.35 <= ps.mean() <= 0.65
+
+
+def test_planted_edge_is_still_detected_with_the_gap_constrained_control():
+    from quantlab.patterns import event_arrays, Ev
+    df = _ar_series(2400, 0.3, 77)
+    c = df["close"].to_numpy().copy()
+    o = df["open"].to_numpy().copy()
+    rng = np.random.default_rng(5)
+    idx0 = np.sort(rng.choice(np.arange(60, 2300), size=160, replace=False))
+    idx, _ = event_arrays([Ev(int(i), 1, 0.0) for i in idx0])
+    bump = np.zeros(len(df))
+    for i in idx:                                                       # +1 ATR-ish drift in the 5 bars after each event
+        bump[i + 1:i + 6] += 4.0
+    shift = np.cumsum(bump)
+    for col in ("open", "high", "low", "close"):
+        df[col] = df[col] + shift
+    t = pd.to_datetime(df["time"])
+    tab = event_study(df, idx, 1, horizons=(5,), eval_start=t.iloc[0], eval_end=t.iloc[-1] + H4, n_ctrl=500, primary_h=5,
+                      n_ctrl_primary=500, bar_td=H4)
+    assert tab.iloc[0]["p_vs_random"] < 0.02 and tab.iloc[0]["edge_ATR"] > 0
+
+
+def test_unbuildable_control_logs_a_trial_with_missing_p_and_can_never_pass_the_screen(lab):
+    """Densely packed events (the control cannot be built): the pair stays in the family (planned size unchanged), p is None
+    (treated as 1 by Holm), control_complete is False and the screen cannot pass - nothing is hidden or silently dropped."""
+    from quantlab.hypotheses import event_screen_passed
+    _setup(lab, tfs=("H4",))
+    df, n = _dev_tail_indices(lab)
+    dense = list(range(30, n - 12, 5))                                # events exactly 5 bars apart over the WHOLE window
+    registry.register_hypothesis("DENSE", "test", "dense events")
+    r = run_event_study("DENSE", "XAUUSD", "H4", _fake_events(df, dense), {}, n_ctrl=100, n_ctrl_primary=100, lookahead_check=False)
+    s = r["summary"]
+    assert r["trial_seq"] is not None and s["kind"] == "event_study" and s["n_events"] > 100
+    assert s["control_complete"] is False and s["p_raw"] is None and "INCOMPLETE" in s["control_warning"]
+    assert not event_screen_passed(s)
+    t = registry.family_table()
+    row = t[t["seq"] == r["trial_seq"]].iloc[0]
+    assert np.isnan(row["p_raw"]) and len(t) == registry.trial_count(("dev", "valid"))            # counted in m, p treated as missing
+    good = dict(s, control_complete=True, p_raw=0.04, edge_ATR=0.1)
+    assert event_screen_passed(good) and not event_screen_passed(dict(good, p_raw=0.2)) and not event_screen_passed(dict(good, edge_ATR=-0.1))
+    assert not event_screen_passed(dict(good, n_events=29)) and not event_screen_passed(dict(good, control_complete=False))

@@ -19,6 +19,15 @@ STAGE2_MAX_HOLD = {"D1": 20, "H4": 30}
 STAGE2_MAX_PAIRS = 12
 EVENT_SCREEN = {"min_events": 30, "min_edge_ATR": 0.0, "max_p": 0.10}
 
+def event_screen_passed(summary: dict) -> bool:
+    """Stage-1 screen (thresholds exactly as registered in EVENT_SCREEN) plus the validity precondition that the random comparison
+    was actually built (control_complete). A pair whose control could not be built has p = None and can never pass."""
+    s, e = EVENT_SCREEN, summary
+    if e.get("kind") != "event_study" or not e.get("control_complete") or e.get("p_raw") is None or e.get("edge_ATR") is None:
+        return False
+    return e["n_events"] >= s["min_events"] and e["edge_ATR"] > s["min_edge_ATR"] and e["p_raw"] <= s["max_p"]
+
+
 SPEC = {
     "H01_FALSE_BREAKOUT": ("false_breakout", "Fake breakout of the prior 20-bar high/low: the bar pokes beyond the level and closes back inside. Trade against the poke; stop at the bar extreme.", {"N": 20}),
     "H02_TREND_PULLBACK": ("pullback", "Trend (close > SMA50 and SMA50 rising vs 10 bars ago) with a bar that touches EMA20 and closes back above it as an up bar. Mirror for downtrends; stop at the 3-bar extreme.", {"fast": 20, "slow": 50, "slope_lag": 10}),
