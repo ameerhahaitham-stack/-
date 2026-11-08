@@ -1,0 +1,21 @@
+{
+ "phi": 0.8,
+ "mode": "C",
+ "n_bars": 1600,
+ "sigma": 3.0,
+ "n_raw_events": 140,
+ "horizon": 5,
+ "n_ctrl_primary": 20000,
+ "refine_below": 0.005,
+ "n_ctrl_refine": 200000,
+ "r_ref": 20000,
+ "n_pre": 2000,
+ "pre_cut": 0.02,
+ "n_full": 2000,
+ "k_full0": 0,
+ "min_gap": 5,
+ "series_seed0": -1,
+ "event_seed0": 3000000,
+ "ref_seed0": 5000000,
+ "obs_seed0": 6000000
+}

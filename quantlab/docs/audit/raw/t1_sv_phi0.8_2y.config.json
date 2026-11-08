@@ -1,0 +1,20 @@
+{
+ "name": "sv_phi0.8_2y",
+ "phi": 0.8,
+ "sv": [
+  0.97,
+  0.25
+ ],
+ "start": "2018-07-01",
+ "hl": "scaled",
+ "n_bars": 1600,
+ "sigma": 3.0,
+ "n_raw": 140,
+ "horizon": 5,
+ "n_draws": 2000,
+ "r_ref": 2000,
+ "gap": 5,
+ "series_seed0": 800000,
+ "event_seed0": 7000000,
+ "ctrl_seed0": 9000000
+}

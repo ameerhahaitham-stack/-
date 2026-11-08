@@ -1,0 +1,17 @@
+{
+ "name": "phi0.8",
+ "phi": 0.8,
+ "sv": null,
+ "start": "2018-01-01",
+ "hl": "unit",
+ "n_bars": 1600,
+ "sigma": 3.0,
+ "n_raw": 140,
+ "horizon": 5,
+ "n_draws": 2000,
+ "r_ref": 2000,
+ "gap": 5,
+ "series_seed0": 700000,
+ "event_seed0": 7000000,
+ "ctrl_seed0": 9000000
+}

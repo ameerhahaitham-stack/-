@@ -1,0 +1,15 @@
+{
+ "name": "phi0.0_mid",
+ "phi": 0.0,
+ "n_raw": 70,
+ "k_atr": 1.5,
+ "rr": 2.0,
+ "max_hold": 20,
+ "n_bars": 1600,
+ "n_reps": 500,
+ "r_ref": 500,
+ "series_seed0": 1100000,
+ "event_seed0": 11000000,
+ "ref_seed0": 13000000,
+ "ctrl_seed0": 15000000
+}

@@ -1,0 +1,102 @@
+{
+ "seed0": 20261110,
+ "reps": 30000,
+ "base": {
+  "A2_iid_rr2": {
+   "name": "A2",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "rr2",
+   "phi_trade": 0.0,
+   "month_effect": 0.0,
+   "phi_month": 0.0,
+   "vol_sd": 0.0,
+   "streaks": 0.0
+  },
+  "A1_iid_normal": {
+   "name": "A1",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "normal",
+   "phi_trade": 0.0,
+   "month_effect": 0.0,
+   "phi_month": 0.0,
+   "vol_sd": 0.0,
+   "streaks": 0.0
+  },
+  "B1_ar0.3_rr2": {
+   "name": "B1",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "rr2",
+   "phi_trade": 0.3,
+   "month_effect": 0.0,
+   "phi_month": 0.0,
+   "vol_sd": 0.0,
+   "streaks": 0.0
+  },
+  "B2_ar0.7_rr2": {
+   "name": "B2",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "rr2",
+   "phi_trade": 0.7,
+   "month_effect": 0.0,
+   "phi_month": 0.0,
+   "vol_sd": 0.0,
+   "streaks": 0.0
+  },
+  "C3_month_eff0.5_ar0.8": {
+   "name": "C3",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "rr2",
+   "phi_trade": 0.0,
+   "month_effect": 0.5,
+   "phi_month": 0.8,
+   "vol_sd": 0.0,
+   "streaks": 0.0
+  },
+  "E1_streak0.9_rr2": {
+   "name": "E1",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "rr2",
+   "phi_trade": 0.0,
+   "month_effect": 0.0,
+   "phi_month": 0.0,
+   "vol_sd": 0.0,
+   "streaks": 0.9
+  },
+  "D2_vol1.0_rr2": {
+   "name": "D2",
+   "K": 24,
+   "n_per_month": 5.0,
+   "month_dist": "equal",
+   "r_dist": "rr2",
+   "phi_trade": 0.0,
+   "month_effect": 0.0,
+   "phi_month": 0.0,
+   "vol_sd": 1.0,
+   "streaks": 0.0
+  }
+ },
+ "K": [
+  6,
+  12,
+  18,
+  24,
+  36,
+  60,
+  120
+ ],
+ "cbb_block": 3,
+ "nw_lag": 3,
+ "n_resamples": 5000
+}

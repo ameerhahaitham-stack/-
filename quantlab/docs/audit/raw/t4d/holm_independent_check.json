@@ -1,0 +1,7 @@
+{
+ "implementation_mismatches_vs_stats.holm(3000 random vectors, padding m=82)": 0,
+ "FWER_exact_valid_p_rho0.0": 0.09615,
+ "FWER_exact_valid_p_rho0.5": 0.0481,
+ "FWER_exact_valid_p_rho0.9": 0.01035,
+ "FWER_exact_valid_p_rho0.99": 0.00265
+}
