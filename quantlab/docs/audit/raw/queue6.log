@@ -1,0 +1,22 @@
+14:29:38 START python3 scripts/audit/t3_tail.py --mode G --phi 0.5 --n 8000 --nfull 3000 --procs 1
+14:29:38 START python3 scripts/audit/t3_tail.py --mode W --phi 0.8 --n 8000 --nfull 3000 --procs 1
+14:37:52 END   python3 scripts/audit/t3_tail.py --mode W --phi 0.8 --n 8000 --nfull 3000 --procs 1
+14:37:52 START python3 scripts/audit/t2_bc.py --mode W --phi 0.95 --n 5000 --procs 1
+14:44:09 END   python3 scripts/audit/t3_tail.py --mode G --phi 0.5 --n 8000 --nfull 3000 --procs 1
+14:44:09 START python3 scripts/audit/t2_bc.py --mode G --phi 0.0 --n 5000 --procs 1
+14:48:42 END   python3 scripts/audit/t2_bc.py --mode W --phi 0.95 --n 5000 --procs 1
+14:48:42 START python3 scripts/audit/t3_tail.py --mode C --phi 0.8 --n 6000 --nfull 2000 --procs 1
+14:54:47 END   python3 scripts/audit/t2_bc.py --mode G --phi 0.0 --n 5000 --procs 1
+14:54:47 START python3 scripts/audit/t2_bc.py --mode G --phi 0.5 --n 5000 --procs 1
+15:01:16 END   python3 scripts/audit/t3_tail.py --mode C --phi 0.8 --n 6000 --nfull 2000 --procs 1
+15:01:16 START python3 scripts/audit/t2_bc.py --mode C --phi 0.8 --n 4000 --procs 1
+15:05:31 END   python3 scripts/audit/t2_bc.py --mode G --phi 0.5 --n 5000 --procs 1
+15:05:31 START python3 scripts/audit/t3_tail.py --mode R --phi 0.8 --n 6000 --nfull 2000 --procs 1
+15:10:25 END   python3 scripts/audit/t2_bc.py --mode C --phi 0.8 --n 4000 --procs 1
+15:10:25 Q6A DONE
+15:17:05 END   python3 scripts/audit/t3_tail.py --mode R --phi 0.8 --n 6000 --nfull 2000 --procs 1
+15:17:05 START python3 scripts/audit/t2_bc.py --mode R --phi 0.8 --n 4000 --procs 1
+15:27:13 END   python3 scripts/audit/t2_bc.py --mode R --phi 0.8 --n 4000 --procs 1
+15:27:13 START python3 scripts/audit/t5_trade.py --setting phi0.8_regular --n 800
+15:33:33 END   python3 scripts/audit/t5_trade.py --setting phi0.8_regular --n 800
+15:33:33 Q6B DONE

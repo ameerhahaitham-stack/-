@@ -1,0 +1,53 @@
+docs/audit/raw/t3_shiftfill_G_phi0.8.csv: 0 done, 20000 to do
+  block 0: +1000 studies (9s)
+  block 1: +1000 studies (17s)
+  block 2: +1000 studies (25s)
+  block 3: +1000 studies (34s)
+  block 4: +1000 studies (43s)
+  block 5: +1000 studies (52s)
+  block 6: +1000 studies (61s)
+  block 7: +1000 studies (69s)
+  block 8: +1000 studies (78s)
+  block 9: +1000 studies (87s)
+  block 10: +1000 studies (96s)
+  block 11: +1000 studies (104s)
+  block 12: +1000 studies (113s)
+  block 13: +1000 studies (121s)
+  block 14: +1000 studies (130s)
+  block 15: +1000 studies (139s)
+  block 16: +1000 studies (147s)
+  block 17: +1000 studies (156s)
+  block 18: +1000 studies (164s)
+  block 19: +1000 studies (172s)
+docs/audit/raw/t3_shiftfill_G_phi0.95.csv: 0 done, 6000 to do
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ~~~~^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 48, in mapstar
+    return list(map(*args))
+  File "/home/claude/quantlab/scripts/audit/../../src/quantlab/audit/runner.py", line 11, in _call
+    return fn(k)
+  File "/home/claude/quantlab/scripts/audit/t3_shiftfill.py", line 17, in one
+    assert abs(obs - OLD[cfg.phi][k]) < 1e-9, (k, obs, OLD[cfg.phi][k])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (0, -0.10161070131721231, 0.6649331481580576)
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/claude/quantlab/scripts/audit/t3_shiftfill.py", line 27, in <module>
+    run_resumable(f"docs/audit/raw/t3_shiftfill_G_phi{a.phi}.csv", functools.partial(one, cfg), list(old.k), a.procs, block=1000)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude/quantlab/scripts/audit/../../src/quantlab/audit/runner.py", line 32, in run_resumable
+    rows = [r for part in pool.map(_call, [(fn, k) for k in blk], chunksize=max(1, len(blk) // (procs * 4))) for r in part]
+                          ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 367, in map
+    return self._map_async(func, iterable, mapstar, chunksize).get()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 774, in get
+    raise self._value
+AssertionError: (0, -0.10161070131721231, 0.6649331481580576)

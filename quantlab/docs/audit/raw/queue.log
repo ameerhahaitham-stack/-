@@ -1,0 +1,51 @@
+23:06:59 START python3 scripts/audit/t1_ablation.py --setting phi0.8 --n 1500
+23:11:08 END   python3 scripts/audit/t1_ablation.py --setting phi0.8 --n 1500
+23:11:08 START python3 scripts/audit/t1_ablation.py --setting phi0.8 --n 1500 --which extra
+23:14:07 END   python3 scripts/audit/t1_ablation.py --setting phi0.8 --n 1500 --which extra
+23:14:07 START python3 scripts/audit/t3_shiftfill.py --phi 0.95
+23:14:07 END   python3 scripts/audit/t3_shiftfill.py --phi 0.95
+23:14:07 START python3 scripts/audit/t1_ablation.py --setting phi0.95 --n 1500
+23:29:30 END   python3 scripts/audit/t1_ablation.py --setting phi0.95 --n 1500
+23:29:30 START python3 scripts/audit/t1_ablation.py --setting sv_phi0.8_2y --n 1500
+23:44:43 END   python3 scripts/audit/t1_ablation.py --setting sv_phi0.8_2y --n 1500
+23:44:43 START python3 scripts/audit/t4_bootstrap.py --reps 60000
+23:54:18 END   python3 scripts/audit/t4_bootstrap.py --reps 60000
+23:54:18 START python3 scripts/audit/t3_tail.py --mode S --phi 0.8 --n 20000 --nfull 5000
+00:24:06 START python3 scripts/audit/t2_bc.py --mode G --phi 0.8 --n 20000
+00:36:36 END   python3 scripts/audit/t2_bc.py --mode G --phi 0.8 --n 20000
+00:36:36 START python3 scripts/audit/t2_bc.py --mode G --phi 0.95 --n 20000
+00:49:20 END   python3 scripts/audit/t2_bc.py --mode G --phi 0.95 --n 20000
+00:49:20 START python3 scripts/audit/t4b_extra.py --part b --fams 2500
+01:04:56 END   python3 scripts/audit/t4b_extra.py --part b --fams 2500
+01:04:56 START python3 scripts/audit/t4b_extra.py --part a --reps 20000
+01:30:18 END   python3 scripts/audit/t4b_extra.py --part a --reps 20000
+01:30:18 START python3 scripts/audit/t5_trade.py --setting phi0.8_mid --n 800
+02:00:47 END   python3 scripts/audit/t5_trade.py --setting phi0.8_mid --n 800
+02:00:47 START python3 scripts/audit/t5_trade.py --setting phi0.8_crowded --n 800
+04:07:38 START python3 scripts/audit/t4c_extended.py --reps 30000
+04:27:49 END   python3 scripts/audit/t4c_extended.py --reps 30000
+04:27:49 START python3 scripts/audit/t4d_family.py --part mixed --fams 2500
+04:31:13 END   python3 scripts/audit/t4d_family.py --part mixed --fams 2500
+04:31:13 START python3 scripts/audit/t5_trade.py --setting phi0.8_crowded --n 800
+04:59:15 END   python3 scripts/audit/t5_trade.py --setting phi0.8_crowded --n 800
+04:59:15 START python3 scripts/audit/t5_trade.py --setting phi0.0_mid --n 800
+05:24:36 END   python3 scripts/audit/t5_trade.py --setting phi0.0_mid --n 800
+05:24:36 START python3 scripts/audit/t5_trade.py --setting phi0.95_mid --n 800
+05:26:24 START python3 scripts/audit/t4c_extended.py --reps 30000
+05:26:30 END   python3 scripts/audit/t4c_extended.py --reps 30000
+05:26:30 START python3 scripts/audit/t4d_family.py --part mixed --fams 2500
+05:26:30 END   python3 scripts/audit/t4d_family.py --part mixed --fams 2500
+05:26:30 START python3 scripts/audit/t5_trade.py --setting phi0.8_crowded --n 800
+05:26:31 END   python3 scripts/audit/t5_trade.py --setting phi0.8_crowded --n 800
+05:26:31 START python3 scripts/audit/t5_trade.py --setting phi0.0_mid --n 800
+05:26:31 END   python3 scripts/audit/t5_trade.py --setting phi0.0_mid --n 800
+05:26:31 START python3 scripts/audit/t5_trade.py --setting phi0.95_mid --n 800
+05:49:54 END   python3 scripts/audit/t5_trade.py --setting phi0.95_mid --n 800
+05:49:54 START python3 scripts/audit/t5_trade.py --setting phi0.8_sparse --n 800
+06:10:06 END   python3 scripts/audit/t5_trade.py --setting phi0.8_sparse --n 800
+06:10:06 START python3 scripts/audit/t1_ablation.py --setting phi0.95 --n 1500 --which extra
+06:16:17 END   python3 scripts/audit/t1_ablation.py --setting phi0.95 --n 1500 --which extra
+06:16:17 START python3 scripts/audit/t1_ablation.py --setting sv_phi0.8_2y --n 1500 --which extra
+06:29:47 END   python3 scripts/audit/t1_ablation.py --setting sv_phi0.8_2y --n 1500 --which extra
+06:29:47 START python3 scripts/audit/t3_tail.py --mode G --phi 0.0 --n 20000 --nfull 3000
+07:27:18 START python3 scripts/audit/t3_tail.py --mode G --phi 0.5 --n 20000 --nfull 3000

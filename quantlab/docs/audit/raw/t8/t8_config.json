@@ -1,0 +1,35 @@
+{
+ "seed0": 20261122,
+ "m": 82,
+ "K": 24,
+ "n_per_month": 5,
+ "fams": 5000,
+ "within": {
+  "W0_none": {
+   "phi_trade": 0.0,
+   "sig": 0.0,
+   "phi_month": 0.0
+  },
+  "WT_tradeAR0.7": {
+   "phi_trade": 0.7,
+   "sig": 0.0,
+   "phi_month": 0.0
+  },
+  "WM5_ownMonthAR0.5": {
+   "phi_trade": 0.0,
+   "sig": 0.5,
+   "phi_month": 0.5
+  },
+  "WM8_ownMonthAR0.8": {
+   "phi_trade": 0.0,
+   "sig": 0.5,
+   "phi_month": 0.8
+  }
+ },
+ "rhos": [
+  0.0,
+  0.5,
+  0.9
+ ],
+ "thr": 0.0012195121951219512
+}

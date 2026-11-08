@@ -1,0 +1,14 @@
+17:38:17 START python3 scripts/audit/t1_ablation.py --setting phi0 --n 1500 --procs 1
+17:38:17 START python3 scripts/audit/t3_tail.py --mode S --phi 0.0 --n 8000 --nfull 3000 --procs 1
+20:24:36 START python3 scripts/audit/t1_ablation.py --setting phi0 --n 1500 --procs 1
+20:28:39 START python3 scripts/audit/t3_tail.py --mode S --phi 0.0 --n 8000 --nfull 3000 --procs 1
+20:53:16 END   python3 scripts/audit/t3_tail.py --mode S --phi 0.0 --n 8000 --nfull 3000 --procs 1
+20:53:16 START python3 scripts/audit/t3_tail.py --mode S --phi 0.5 --n 8000 --nfull 3000 --procs 1
+21:18:34 END   python3 scripts/audit/t1_ablation.py --setting phi0 --n 1500 --procs 1
+21:18:34 START python3 scripts/audit/t1_ablation.py --setting phi0.5 --n 1500 --procs 1
+21:21:43 END   python3 scripts/audit/t3_tail.py --mode S --phi 0.5 --n 8000 --nfull 3000 --procs 1
+21:21:43 START python3 scripts/audit/t3_tail.py --mode S --phi 0.95 --n 8000 --nfull 3000 --procs 1
+21:54:51 END   python3 scripts/audit/t3_tail.py --mode S --phi 0.95 --n 8000 --nfull 3000 --procs 1
+21:54:51 Q7B DONE
+21:55:22 END   python3 scripts/audit/t1_ablation.py --setting phi0.5 --n 1500 --procs 1
+21:55:22 Q7A DONE

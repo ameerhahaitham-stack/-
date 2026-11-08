@@ -1,0 +1,696 @@
+docs/audit/raw/t1_phi0.8.csv: 1100 done, 400 to do
+  block 0: +100 studies (62s)
+  block 1: +100 studies (124s)
+  block 2: +100 studies (183s)
+  block 3: +100 studies (245s)
+docs/audit/raw/t1_extra_phi0.8.csv: 800 done, 700 to do
+  block 0: +100 studies (26s)
+  block 1: +100 studies (50s)
+  block 2: +100 studies (73s)
+  block 3: +100 studies (106s)
+  block 4: +100 studies (131s)
+  block 5: +100 studies (154s)
+  block 6: +100 studies (178s)
+docs/audit/raw/t3_shiftfill_G_phi0.95.csv: 0 done, 6000 to do
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ~~~~^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 48, in mapstar
+    return list(map(*args))
+  File "/home/claude/quantlab/scripts/audit/../../src/quantlab/audit/runner.py", line 11, in _call
+    return fn(k)
+  File "/home/claude/quantlab/scripts/audit/t3_shiftfill.py", line 17, in one
+    assert abs(obs - OLD[cfg.phi][k]) < 1e-9, (k, obs, OLD[cfg.phi][k])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (0, -0.10161070131721231, 0.6649331481580576)
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/claude/quantlab/scripts/audit/t3_shiftfill.py", line 27, in <module>
+    run_resumable(f"docs/audit/raw/t3_shiftfill_G_phi{a.phi}.csv", functools.partial(one, cfg), list(old.k), a.procs, block=1000)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude/quantlab/scripts/audit/../../src/quantlab/audit/runner.py", line 32, in run_resumable
+    rows = [r for part in pool.map(_call, [(fn, k) for k in blk], chunksize=max(1, len(blk) // (procs * 4))) for r in part]
+                          ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 367, in map
+    return self._map_async(func, iterable, mapstar, chunksize).get()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 774, in get
+    raise self._value
+AssertionError: (0, -0.10161070131721231, 0.6649331481580576)
+docs/audit/raw/t1_phi0.95.csv: 0 done, 1500 to do
+  block 0: +100 studies (59s)
+  block 1: +100 studies (121s)
+  block 2: +100 studies (183s)
+  block 3: +100 studies (246s)
+  block 4: +100 studies (314s)
+  block 5: +100 studies (376s)
+  block 6: +100 studies (437s)
+  block 7: +100 studies (499s)
+  block 8: +100 studies (561s)
+  block 9: +100 studies (622s)
+  block 10: +100 studies (682s)
+  block 11: +100 studies (742s)
+  block 12: +100 studies (803s)
+  block 13: +100 studies (863s)
+  block 14: +100 studies (923s)
+docs/audit/raw/t1_sv_phi0.8_2y.csv: 0 done, 1500 to do
+  block 0: +100 studies (60s)
+  block 1: +100 studies (119s)
+  block 2: +100 studies (179s)
+  block 3: +100 studies (238s)
+  block 4: +100 studies (297s)
+  block 5: +100 studies (357s)
+  block 6: +100 studies (417s)
+  block 7: +100 studies (476s)
+  block 8: +100 studies (537s)
+  block 9: +100 studies (598s)
+  block 10: +100 studies (661s)
+  block 11: +100 studies (723s)
+  block 12: +100 studies (788s)
+  block 13: +100 studies (850s)
+  block 14: +100 studies (912s)
+A1_iid_normal: 60000 reps in 20s
+A2_iid_rr2: 60000 reps in 20s
+A3_iid_rr3: 60000 reps in 19s
+A4_iid_t3: 60000 reps in 24s
+B1_ar0.3_rr2: 60000 reps in 21s
+B2_ar0.7_rr2: 60000 reps in 22s
+B3_ar0.7_normal: 60000 reps in 21s
+C1_month_eff0.5: 60000 reps in 21s
+C2_month_eff0.5_ar0.5: 60000 reps in 21s
+C3_month_eff0.5_ar0.8: 60000 reps in 22s
+C4_month_eff1.0_ar0.8: 60000 reps in 22s
+D1_vol0.5_rr2: 60000 reps in 20s
+D2_vol1.0_rr2: 60000 reps in 20s
+D3_vol1.0_ar0.7_ma0.8: 60000 reps in 22s
+E1_streak0.9_rr2: 60000 reps in 22s
+E2_streak0.97_rr2: 60000 reps in 21s
+F1_n1_perm_rr2: 60000 reps in 19s
+F2_n2_perm_rr2: 60000 reps in 19s
+F3_n10_perm_rr2: 60000 reps in 20s
+F4_n20_perm_rr2: 60000 reps in 21s
+F5_K12_rr2: 60000 reps in 12s
+F6_K60_rr2: 60000 reps in 32s
+F7_K60_n2_rr2: 60000 reps in 32s
+G1_poisson_n3_rr2: 60000 reps in 19s
+G2_negbin_n5_rr2: 60000 reps in 18s
+G3_sparse_n3_rr2: 60000 reps in 16s
+G4_sparse_n8_rr2: 60000 reps in 16s
+G5_negbin_n2_K12_rr2: 60000 reps in 10s
+docs/audit/raw/t3_S_phi0.8.csv: 0 done, 20000 to do
+  block 0: +200 studies (37s)
+  block 1: +200 studies (80s)
+  block 2: +200 studies (122s)
+  block 3: +200 studies (160s)
+  block 4: +200 studies (204s)
+  block 5: +200 studies (248s)
+  block 6: +200 studies (290s)
+  block 7: +200 studies (330s)
+  block 8: +200 studies (368s)
+  block 9: +200 studies (405s)
+  block 10: +200 studies (446s)
+  block 11: +200 studies (489s)
+  block 12: +200 studies (528s)
+  block 13: +200 studies (573s)
+  block 14: +200 studies (613s)
+  block 15: +200 studies (656s)
+  block 16: +200 studies (696s)
+  block 17: +200 studies (735s)
+  block 18: +200 studies (776s)
+  block 19: +200 studies (830s)
+  block 20: +200 studies (872s)
+  block 21: +200 studies (915s)
+  block 22: +200 studies (957s)
+  block 23: +200 studies (998s)
+  block 24: +200 studies (1041s)
+  block 25: +200 studies (1048s)
+  block 26: +200 studies (1056s)
+  block 27: +200 studies (1068s)
+  block 28: +200 studies (1079s)
+  block 29: +200 studies (1088s)
+  block 30: +200 studies (1102s)
+  block 31: +200 studies (1112s)
+  block 32: +200 studies (1119s)
+  block 33: +200 studies (1129s)
+  block 34: +200 studies (1137s)
+  block 35: +200 studies (1145s)
+  block 36: +200 studies (1153s)
+  block 37: +200 studies (1161s)
+  block 38: +200 studies (1168s)
+  block 39: +200 studies (1181s)
+  block 40: +200 studies (1193s)
+  block 41: +200 studies (1202s)
+  block 42: +200 studies (1211s)
+  block 43: +200 studies (1222s)
+  block 44: +200 studies (1231s)
+  block 45: +200 studies (1238s)
+  block 46: +200 studies (1246s)
+  block 47: +200 studies (1258s)
+  block 48: +200 studies (1269s)
+  block 49: +200 studies (1281s)
+  block 50: +200 studies (1289s)
+  block 51: +200 studies (1301s)
+  block 52: +200 studies (1311s)
+  block 53: +200 studies (1321s)
+  block 54: +200 studies (1330s)
+  block 55: +200 studies (1339s)
+  block 56: +200 studies (1349s)
+  block 57: +200 studies (1359s)
+  block 58: +200 studies (1372s)
+  block 59: +200 studies (1383s)
+  block 60: +200 studies (1392s)
+  block 61: +200 studies (1402s)
+  block 62: +200 studies (1415s)
+  block 63: +200 studies (1422s)
+  block 64: +200 studies (1434s)
+  block 65: +200 studies (1443s)
+  block 66: +200 studies (1453s)
+  block 67: +200 studies (1461s)
+  block 68: +200 studies (1469s)
+  block 69: +200 studies (1480s)
+  block 70: +200 studies (1488s)
+  block 71: +200 studies (1501s)
+  block 72: +200 studies (1511s)
+  block 73: +200 studies (1524s)
+  block 74: +200 studies (1533s)
+  block 75: +200 studies (1541s)
+  block 76: +200 studies (1554s)
+  block 77: +200 studies (1561s)
+  block 78: +200 studies (1568s)
+  block 79: +200 studies (1577s)
+  block 80: +200 studies (1588s)
+  block 81: +200 studies (1599s)
+  block 82: +200 studies (1607s)
+  block 83: +200 studies (1618s)
+  block 84: +200 studies (1625s)
+  block 85: +200 studies (1641s)
+  block 86: +200 studies (1651s)
+  block 87: +200 studies (1659s)
+  block 88: +200 studies (1672s)
+  block 89: +200 studies (1680s)
+  block 90: +200 studies (1689s)
+  block 91: +200 studies (1698s)
+  block 92: +200 studies (1709s)
+  block 93: +200 studies (1720s)
+  block 94: +200 studies (1731s)
+  block 95: +200 studies (1743s)
+  block 96: +200 studies (1752s)
+  block 97: +200 studies (1759s)
+  block 98: +200 studies (1767s)
+  block 99: +200 studies (1779s)
+docs/audit/raw/t2bc_G_phi0.8.csv: 0 done, 20000 to do
+  block 0: +250 studies (33s)
+  block 1: +250 studies (66s)
+  block 2: +250 studies (100s)
+  block 3: +250 studies (133s)
+  block 4: +250 studies (168s)
+  block 5: +250 studies (202s)
+  block 6: +250 studies (235s)
+  block 7: +250 studies (268s)
+  block 8: +250 studies (300s)
+  block 9: +250 studies (332s)
+  block 10: +250 studies (365s)
+  block 11: +250 studies (397s)
+  block 12: +250 studies (401s)
+  block 13: +250 studies (407s)
+  block 14: +250 studies (412s)
+  block 15: +250 studies (416s)
+  block 16: +250 studies (422s)
+  block 17: +250 studies (427s)
+  block 18: +250 studies (432s)
+  block 19: +250 studies (438s)
+  block 20: +250 studies (443s)
+  block 21: +250 studies (447s)
+  block 22: +250 studies (452s)
+  block 23: +250 studies (458s)
+  block 24: +250 studies (463s)
+  block 25: +250 studies (468s)
+  block 26: +250 studies (474s)
+  block 27: +250 studies (479s)
+  block 28: +250 studies (484s)
+  block 29: +250 studies (489s)
+  block 30: +250 studies (494s)
+  block 31: +250 studies (499s)
+  block 32: +250 studies (505s)
+  block 33: +250 studies (509s)
+  block 34: +250 studies (515s)
+  block 35: +250 studies (520s)
+  block 36: +250 studies (524s)
+  block 37: +250 studies (530s)
+  block 38: +250 studies (534s)
+  block 39: +250 studies (539s)
+  block 40: +250 studies (544s)
+  block 41: +250 studies (549s)
+  block 42: +250 studies (554s)
+  block 43: +250 studies (559s)
+  block 44: +250 studies (564s)
+  block 45: +250 studies (569s)
+  block 46: +250 studies (574s)
+  block 47: +250 studies (579s)
+  block 48: +250 studies (584s)
+  block 49: +250 studies (589s)
+  block 50: +250 studies (594s)
+  block 51: +250 studies (600s)
+  block 52: +250 studies (605s)
+  block 53: +250 studies (610s)
+  block 54: +250 studies (615s)
+  block 55: +250 studies (620s)
+  block 56: +250 studies (625s)
+  block 57: +250 studies (630s)
+  block 58: +250 studies (636s)
+  block 59: +250 studies (641s)
+  block 60: +250 studies (647s)
+  block 61: +250 studies (654s)
+  block 62: +250 studies (659s)
+  block 63: +250 studies (665s)
+  block 64: +250 studies (670s)
+  block 65: +250 studies (675s)
+  block 66: +250 studies (680s)
+  block 67: +250 studies (685s)
+  block 68: +250 studies (690s)
+  block 69: +250 studies (695s)
+  block 70: +250 studies (700s)
+  block 71: +250 studies (705s)
+  block 72: +250 studies (710s)
+  block 73: +250 studies (715s)
+  block 74: +250 studies (720s)
+  block 75: +250 studies (726s)
+  block 76: +250 studies (731s)
+  block 77: +250 studies (735s)
+  block 78: +250 studies (740s)
+  block 79: +250 studies (745s)
+docs/audit/raw/t2bc_G_phi0.95.csv: 0 done, 20000 to do
+  block 0: +250 studies (36s)
+  block 1: +250 studies (70s)
+  block 2: +250 studies (104s)
+  block 3: +250 studies (138s)
+  block 4: +250 studies (172s)
+  block 5: +250 studies (206s)
+  block 6: +250 studies (239s)
+  block 7: +250 studies (273s)
+  block 8: +250 studies (308s)
+  block 9: +250 studies (342s)
+  block 10: +250 studies (375s)
+  block 11: +250 studies (410s)
+  block 12: +250 studies (414s)
+  block 13: +250 studies (420s)
+  block 14: +250 studies (426s)
+  block 15: +250 studies (431s)
+  block 16: +250 studies (436s)
+  block 17: +250 studies (440s)
+  block 18: +250 studies (445s)
+  block 19: +250 studies (450s)
+  block 20: +250 studies (456s)
+  block 21: +250 studies (461s)
+  block 22: +250 studies (466s)
+  block 23: +250 studies (471s)
+  block 24: +250 studies (476s)
+  block 25: +250 studies (481s)
+  block 26: +250 studies (487s)
+  block 27: +250 studies (492s)
+  block 28: +250 studies (498s)
+  block 29: +250 studies (503s)
+  block 30: +250 studies (508s)
+  block 31: +250 studies (514s)
+  block 32: +250 studies (519s)
+  block 33: +250 studies (524s)
+  block 34: +250 studies (530s)
+  block 35: +250 studies (535s)
+  block 36: +250 studies (539s)
+  block 37: +250 studies (545s)
+  block 38: +250 studies (550s)
+  block 39: +250 studies (555s)
+  block 40: +250 studies (561s)
+  block 41: +250 studies (567s)
+  block 42: +250 studies (572s)
+  block 43: +250 studies (577s)
+  block 44: +250 studies (582s)
+  block 45: +250 studies (587s)
+  block 46: +250 studies (592s)
+  block 47: +250 studies (597s)
+  block 48: +250 studies (602s)
+  block 49: +250 studies (607s)
+  block 50: +250 studies (612s)
+  block 51: +250 studies (617s)
+  block 52: +250 studies (622s)
+  block 53: +250 studies (628s)
+  block 54: +250 studies (633s)
+  block 55: +250 studies (639s)
+  block 56: +250 studies (644s)
+  block 57: +250 studies (649s)
+  block 58: +250 studies (654s)
+  block 59: +250 studies (660s)
+  block 60: +250 studies (665s)
+  block 61: +250 studies (672s)
+  block 62: +250 studies (677s)
+  block 63: +250 studies (683s)
+  block 64: +250 studies (688s)
+  block 65: +250 studies (693s)
+  block 66: +250 studies (698s)
+  block 67: +250 studies (703s)
+  block 68: +250 studies (708s)
+  block 69: +250 studies (713s)
+  block 70: +250 studies (719s)
+  block 71: +250 studies (724s)
+  block 72: +250 studies (728s)
+  block 73: +250 studies (733s)
+  block 74: +250 studies (739s)
+  block 75: +250 studies (743s)
+  block 76: +250 studies (748s)
+  block 77: +250 studies (753s)
+  block 78: +250 studies (758s)
+  block 79: +250 studies (763s)
+A2_iid_rr2 0.0 True 58s
+A2_iid_rr2 0.5 True 57s
+A2_iid_rr2 0.9 True 58s
+B2_ar0.7_rr2 0.0 True 58s
+B2_ar0.7_rr2 0.5 True 56s
+B2_ar0.7_rr2 0.9 True 57s
+C3_month_eff0.5_ar0.8 0.0 True 55s
+C3_month_eff0.5_ar0.8 0.5 True 55s
+C3_month_eff0.5_ar0.8 0.9 True 70s
+A2_iid_rr2 0.0 False 206s
+A2_iid_rr2 0.9 False 207s
+A2_iid_rr2 616s
+B2_ar0.7_rr2 602s
+C3_month_eff0.5_ar0.8 304s
+docs/audit/raw/t5_phi0.8_mid.csv: 0 done, 800 to do
+  block 0: +50 studies (114s)
+  block 1: +50 studies (229s)
+  block 2: +50 studies (346s)
+  block 3: +50 studies (461s)
+  block 4: +50 studies (575s)
+  block 5: +50 studies (686s)
+  block 6: +50 studies (801s)
+  block 7: +50 studies (918s)
+  block 8: +50 studies (1032s)
+  block 9: +50 studies (1140s)
+  block 10: +50 studies (1251s)
+  block 11: +50 studies (1367s)
+  block 12: +50 studies (1482s)
+  block 13: +50 studies (1597s)
+  block 14: +50 studies (1712s)
+  block 15: +50 studies (1829s)
+docs/audit/raw/t5_phi0.8_crowded.csv: 0 done, 800 to do
+  block 0: +50 studies (157s)
+  block 1: +50 studies (310s)
+  block 2: +50 studies (465s)
+  block 3: +50 studies (620s)
+  block 4: +50 studies (772s)
+  block 5: +50 studies (927s)
+  block 6: +50 studies (1077s)
+A2_iid_rr2 6 7s
+A2_iid_rr2 12 12s
+A2_iid_rr2 18 17s
+A2_iid_rr2 24 19s
+A2_iid_rr2 36 24s
+A2_iid_rr2 60 31s
+A2_iid_rr2 120 49s
+A1_iid_normal 6 7s
+A1_iid_normal 12 13s
+A1_iid_normal 18 17s
+A1_iid_normal 24 20s
+A1_iid_normal 36 25s
+A1_iid_normal 60 32s
+A1_iid_normal 120 51s
+B1_ar0.3_rr2 6 8s
+B1_ar0.3_rr2 12 14s
+B1_ar0.3_rr2 18 18s
+B1_ar0.3_rr2 24 21s
+B1_ar0.3_rr2 36 26s
+B1_ar0.3_rr2 60 32s
+B1_ar0.3_rr2 120 52s
+B2_ar0.7_rr2 6 8s
+B2_ar0.7_rr2 12 14s
+B2_ar0.7_rr2 18 18s
+B2_ar0.7_rr2 24 21s
+B2_ar0.7_rr2 36 27s
+B2_ar0.7_rr2 60 35s
+B2_ar0.7_rr2 120 55s
+C3_month_eff0.5_ar0.8 6 8s
+C3_month_eff0.5_ar0.8 12 14s
+C3_month_eff0.5_ar0.8 18 18s
+C3_month_eff0.5_ar0.8 24 22s
+C3_month_eff0.5_ar0.8 36 27s
+C3_month_eff0.5_ar0.8 60 34s
+C3_month_eff0.5_ar0.8 120 53s
+E1_streak0.9_rr2 6 8s
+E1_streak0.9_rr2 12 15s
+E1_streak0.9_rr2 18 19s
+E1_streak0.9_rr2 24 23s
+E1_streak0.9_rr2 36 28s
+E1_streak0.9_rr2 60 35s
+E1_streak0.9_rr2 120 57s
+D2_vol1.0_rr2 6 8s
+D2_vol1.0_rr2 12 15s
+D2_vol1.0_rr2 18 19s
+D2_vol1.0_rr2 24 22s
+D2_vol1.0_rr2 36 28s
+D2_vol1.0_rr2 60 34s
+D2_vol1.0_rr2 120 51s
+docs/audit/raw/t4d/fam_A2_iid_rr2_rho0.5_true0_d0.0_full.npy 48s
+docs/audit/raw/t4d/fam_A2_iid_rr2_rho0.5_true5_d0.5_full.npy 55s
+docs/audit/raw/t4d/fam_A2_iid_rr2_rho0.5_true20_d0.5_full.npy 48s
+docs/audit/raw/t4d/fam_A2_iid_rr2_rho0.5_true5_d0.5_staged.npy 29s
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ~~~~^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 48, in mapstar
+    return list(map(*args))
+  File "/home/claude/quantlab/scripts/audit/t4d_family.py", line 62, in fam
+    p = np.ones(M); p[sel] = family_pvals(r2[sel], mid2, common_idx=True)
+                             ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude/quantlab/scripts/audit/../../src/quantlab/audit/bootcal.py", line 182, in family_pvals
+    S = np.vstack([np.bincount(inv, weights=ri, minlength=K) for ri in r])
+  File "/usr/local/lib/python3.13/site-packages/numpy/_core/shape_base.py", line 290, in vstack
+    return _nx.concatenate(arrs, 0, dtype=dtype, casting=casting)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: need at least one array to concatenate
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/claude/quantlab/scripts/audit/t4d_family.py", line 87, in <module>
+    res = np.vstack(pool.map(fam, [(name, rho, nt, d, st, ci, min(ch, a.fams - ci * ch)) for ci in range((a.fams + ch - 1) // ch)]))
+                    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 367, in map
+    return self._map_async(func, iterable, mapstar, chunksize).get()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 774, in get
+    raise self._value
+ValueError: need at least one array to concatenate
+docs/audit/raw/t5_phi0.8_crowded.csv: 350 done, 450 to do
+  block 0: +50 studies (244s)
+  block 1: +50 studies (531s)
+  block 2: +50 studies (810s)
+  block 3: +50 studies (954s)
+  block 4: +50 studies (1101s)
+  block 5: +50 studies (1251s)
+  block 6: +50 studies (1399s)
+  block 7: +50 studies (1540s)
+  block 8: +50 studies (1681s)
+docs/audit/raw/t5_phi0.0_mid.csv: 0 done, 800 to do
+  block 0: +50 studies (101s)
+  block 1: +50 studies (203s)
+  block 2: +50 studies (307s)
+  block 3: +50 studies (411s)
+  block 4: +50 studies (509s)
+  block 5: +50 studies (603s)
+  block 6: +50 studies (695s)
+  block 7: +50 studies (787s)
+  block 8: +50 studies (880s)
+  block 9: +50 studies (971s)
+  block 10: +50 studies (1063s)
+  block 11: +50 studies (1155s)
+  block 12: +50 studies (1246s)
+  block 13: +50 studies (1338s)
+  block 14: +50 studies (1430s)
+  block 15: +50 studies (1521s)
+docs/audit/raw/t5_phi0.95_mid.csv: 0 done, 800 to do
+  block 0: +50 studies (92s)
+docs/audit/raw/t5_phi0.8_crowded.csv: 800 done, 0 to do
+docs/audit/raw/t5_phi0.0_mid.csv: 800 done, 0 to do
+docs/audit/raw/t5_phi0.95_mid.csv: 50 done, 750 to do
+  block 0: +50 studies (94s)
+  block 1: +50 studies (186s)
+  block 2: +50 studies (279s)
+  block 3: +50 studies (372s)
+  block 4: +50 studies (465s)
+  block 5: +50 studies (559s)
+  block 6: +50 studies (651s)
+  block 7: +50 studies (746s)
+  block 8: +50 studies (839s)
+  block 9: +50 studies (932s)
+  block 10: +50 studies (1027s)
+  block 11: +50 studies (1121s)
+  block 12: +50 studies (1216s)
+  block 13: +50 studies (1309s)
+  block 14: +50 studies (1402s)
+docs/audit/raw/t5_phi0.8_sparse.csv: 0 done, 800 to do
+  block 0: +50 studies (75s)
+  block 1: +50 studies (152s)
+  block 2: +50 studies (228s)
+  block 3: +50 studies (304s)
+  block 4: +50 studies (379s)
+  block 5: +50 studies (456s)
+  block 6: +50 studies (532s)
+  block 7: +50 studies (608s)
+  block 8: +50 studies (681s)
+  block 9: +50 studies (755s)
+  block 10: +50 studies (831s)
+  block 11: +50 studies (907s)
+  block 12: +50 studies (982s)
+  block 13: +50 studies (1058s)
+  block 14: +50 studies (1135s)
+  block 15: +50 studies (1212s)
+docs/audit/raw/t1_extra_phi0.95.csv: 0 done, 1500 to do
+  block 0: +100 studies (24s)
+  block 1: +100 studies (49s)
+  block 2: +100 studies (72s)
+  block 3: +100 studies (95s)
+  block 4: +100 studies (117s)
+  block 5: +100 studies (138s)
+  block 6: +100 studies (162s)
+  block 7: +100 studies (190s)
+  block 8: +100 studies (216s)
+  block 9: +100 studies (240s)
+  block 10: +100 studies (262s)
+  block 11: +100 studies (296s)
+  block 12: +100 studies (323s)
+  block 13: +100 studies (346s)
+  block 14: +100 studies (370s)
+docs/audit/raw/t1_extra_sv_phi0.8_2y.csv: 0 done, 1500 to do
+  block 0: +100 studies (27s)
+  block 1: +100 studies (77s)
+  block 2: +100 studies (122s)
+  block 3: +100 studies (165s)
+  block 4: +100 studies (209s)
+  block 5: +100 studies (250s)
+  block 6: +100 studies (297s)
+  block 7: +100 studies (347s)
+  block 8: +100 studies (396s)
+  block 9: +100 studies (439s)
+  block 10: +100 studies (490s)
+  block 11: +100 studies (584s)
+  block 12: +100 studies (662s)
+  block 13: +100 studies (733s)
+  block 14: +100 studies (810s)
+docs/audit/raw/t3_G_phi0.0.csv: 0 done, 20000 to do
+  block 0: +200 studies (134s)
+  block 1: +200 studies (278s)
+  block 2: +200 studies (415s)
+  block 3: +200 studies (559s)
+  block 4: +200 studies (702s)
+  block 5: +200 studies (842s)
+  block 6: +200 studies (982s)
+  block 7: +200 studies (1118s)
+  block 8: +200 studies (1252s)
+  block 9: +200 studies (1386s)
+  block 10: +200 studies (1510s)
+  block 11: +200 studies (1645s)
+  block 12: +200 studies (1773s)
+  block 13: +200 studies (1903s)
+  block 14: +200 studies (2032s)
+  block 15: +200 studies (2057s)
+  block 16: +200 studies (2073s)
+  block 17: +200 studies (2094s)
+  block 18: +200 studies (2113s)
+  block 19: +200 studies (2133s)
+  block 20: +200 studies (2158s)
+  block 21: +200 studies (2182s)
+  block 22: +200 studies (2203s)
+  block 23: +200 studies (2224s)
+  block 24: +200 studies (2244s)
+  block 25: +200 studies (2261s)
+  block 26: +200 studies (2277s)
+  block 27: +200 studies (2293s)
+  block 28: +200 studies (2318s)
+  block 29: +200 studies (2349s)
+  block 30: +200 studies (2373s)
+  block 31: +200 studies (2389s)
+  block 32: +200 studies (2414s)
+  block 33: +200 studies (2444s)
+  block 34: +200 studies (2467s)
+  block 35: +200 studies (2489s)
+  block 36: +200 studies (2520s)
+  block 37: +200 studies (2548s)
+  block 38: +200 studies (2566s)
+  block 39: +200 studies (2582s)
+  block 40: +200 studies (2599s)
+  block 41: +200 studies (2622s)
+  block 42: +200 studies (2638s)
+  block 43: +200 studies (2668s)
+  block 44: +200 studies (2684s)
+  block 45: +200 studies (2699s)
+  block 46: +200 studies (2726s)
+  block 47: +200 studies (2736s)
+  block 48: +200 studies (2753s)
+  block 49: +200 studies (2768s)
+  block 50: +200 studies (2778s)
+  block 51: +200 studies (2788s)
+  block 52: +200 studies (2802s)
+  block 53: +200 studies (2815s)
+  block 54: +200 studies (2827s)
+  block 55: +200 studies (2840s)
+  block 56: +200 studies (2855s)
+  block 57: +200 studies (2868s)
+  block 58: +200 studies (2878s)
+  block 59: +200 studies (2887s)
+  block 60: +200 studies (2903s)
+  block 61: +200 studies (2916s)
+  block 62: +200 studies (2929s)
+  block 63: +200 studies (2945s)
+  block 64: +200 studies (2962s)
+  block 65: +200 studies (2972s)
+  block 66: +200 studies (2987s)
+  block 67: +200 studies (2997s)
+  block 68: +200 studies (3014s)
+  block 69: +200 studies (3028s)
+  block 70: +200 studies (3038s)
+  block 71: +200 studies (3052s)
+  block 72: +200 studies (3073s)
+  block 73: +200 studies (3083s)
+  block 74: +200 studies (3097s)
+  block 75: +200 studies (3114s)
+  block 76: +200 studies (3130s)
+  block 77: +200 studies (3145s)
+  block 78: +200 studies (3163s)
+  block 79: +200 studies (3177s)
+  block 80: +200 studies (3191s)
+  block 81: +200 studies (3208s)
+  block 82: +200 studies (3225s)
+  block 83: +200 studies (3235s)
+  block 84: +200 studies (3245s)
+  block 85: +200 studies (3258s)
+  block 86: +200 studies (3269s)
+  block 87: +200 studies (3283s)
+  block 88: +200 studies (3292s)
+  block 89: +200 studies (3307s)
+  block 90: +200 studies (3324s)
+  block 91: +200 studies (3339s)
+  block 92: +200 studies (3353s)
+  block 93: +200 studies (3367s)
+  block 94: +200 studies (3377s)
+  block 95: +200 studies (3390s)
+  block 96: +200 studies (3404s)
+  block 97: +200 studies (3417s)
+  block 98: +200 studies (3431s)
+  block 99: +200 studies (3442s)
+docs/audit/raw/t3_G_phi0.5.csv: 0 done, 20000 to do
+  block 0: +200 studies (86s)
+  block 1: +200 studies (169s)
+  block 2: +200 studies (248s)
+  block 3: +200 studies (331s)
+  block 4: +200 studies (421s)
+  block 5: +200 studies (505s)
+  block 6: +200 studies (595s)

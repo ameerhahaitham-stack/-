@@ -125,3 +125,65 @@ def trade_study(cfg: TradeCfg, k: int) -> list[dict]:
              "p_prod": _p(m, obs), "p_nosub": _p(ma, obs), "p_ref": _p(np.array(ref), obs), "ref_sd": float(np.std(ref, ddof=1)),
              "n_exec_mean": float(out["n_exec"].mean()), "n_exec_min": int(out["n_exec"].min()), "short_frac": float((out["n_exec"] < out["n_real"]).mean()),
              "real_held": float(out["real"]["bars_held"].mean()), "ctrl_held": float(out["held"].mean()), "n_reps_ok": int(len(m))}]
+
+
+# ---------------------------------------------------------------- supplementary audit: drift-regime null (limits of the random-side null)
+def drift_series(n: int, phi: float, seed: int, mu: float, persist: float, sigma: float = 3.0) -> pd.DataFrame:
+    """ar_series plus a zero-mean persistent two-state drift (+-mu price units per bar, regime persistence `persist` per bar). The overall mean drift is zero
+    but a given 2-year sample is dominated by whichever regime lasted longer: market drift that a fixed-side strategy with NO timing skill harvests."""
+    rng = np.random.default_rng(seed)
+    e = rng.normal(0, sigma, n)
+    st = np.empty(n)
+    cur = 1.0 if rng.random() < 0.5 else -1.0
+    u = rng.random(n)
+    for k in range(n):
+        if u[k] > persist:
+            cur = -cur
+        st[k] = cur
+    r = np.zeros(n)
+    for k in range(1, n):
+        r[k] = phi * r[k - 1] + e[k] + mu * st[k]
+    c = 1000 + np.cumsum(r)
+    o = np.r_[c[0], c[:-1]]
+    t = pd.date_range("2018-01-01", periods=n, freq="4h")
+    return pd.DataFrame({"time": t, "open": o, "high": np.maximum(o, c) + 1, "low": np.minimum(o, c) - 1, "close": c, "tick_volume": 1, "spread": 0, "real_volume": 0})
+
+
+@dataclass(frozen=True)
+class DriftCfg:
+    name: str = "D1"
+    phi: float = 0.3
+    mu: float = 0.3
+    persist: float = 0.995
+    n_bars: int = 4320
+    n_raw: int = 150
+    k_atr: float = 1.5
+    rr: float = 2.0
+    max_hold: int = 20
+    n_reps: int = 500
+    series_seed0: int = 2_100_000
+    event_seed0: int = 12_000_000
+    ctrl_seed0: int = 16_000_000
+
+
+def drift_study(cfg: DriftCfg, k: int) -> list[dict]:
+    from ..stats import cluster_bootstrap
+    df = drift_series(cfg.n_bars, cfg.phi, cfg.series_seed0 + k, cfg.mu, cfg.persist)
+    t = pd.to_datetime(df["time"])
+    a, o = atr(df, 14), df["open"].to_numpy(float)
+    es, ee = t.iloc[0], t.iloc[-1] + H4
+    rng = np.random.default_rng(cfg.event_seed0 + k)
+    idx = gen_G(rng, 60, cfg.n_bars - 50, cfg.n_raw, 1)
+    sides = np.ones(len(idx), dtype=int)                                   # fixed side: market drift is NOT averaged out
+    tc = TradeCfg(k_atr=cfg.k_atr, rr=cfg.rr, max_hold=cfg.max_hold)
+    sigs = make_signals(df, a, o, idx, sides, tc)
+    out = matched_control_audit(df, sigs, ZERO, es, ee, cfg.n_reps, cfg.ctrl_seed0 + k)
+    if out is None:
+        return [{"k": k, "n_real": 0}]
+    real = out["real"]
+    obs = float(real["net_R"].mean())
+    bs = cluster_bootstrap(real, 5000, 12345, "month")
+    sd = float(real["net_R"].std(ddof=1)); n = len(real)
+    return [{"k": k, "n_real": n, "obs": obs, "t_naive": obs / (sd / np.sqrt(n)), "p_boot": bs["p_raw"], "n_clusters": bs["n_clusters"],
+             "p_ctrl": _p(out["means"], obs), "ctrl_mean": float(out["means"].mean()), "n_exec_mean": float(out["n_exec"].mean()),
+             "drift_exposure": float(np.sign(np.diff(df["close"].to_numpy())).mean())}]

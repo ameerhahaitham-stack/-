@@ -1,0 +1,15 @@
+{
+ "name": "D1",
+ "phi": 0.3,
+ "mu": 0.3,
+ "persist": 0.995,
+ "n_bars": 4320,
+ "n_raw": 150,
+ "k_atr": 1.5,
+ "rr": 2.0,
+ "max_hold": 20,
+ "n_reps": 500,
+ "series_seed0": 2100000,
+ "event_seed0": 12000000,
+ "ctrl_seed0": 16000000
+}

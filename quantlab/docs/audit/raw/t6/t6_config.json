@@ -1,0 +1,88 @@
+{
+ "seed0": 20261120,
+ "n_per_month": 5,
+ "mus": [
+  0.0,
+  0.1,
+  0.2,
+  0.3,
+  0.5
+ ],
+ "reps0": 100000,
+ "reps1": 20000,
+ "K": [
+  24,
+  60
+ ],
+ "scenarios": {
+  "N1_iid_normal": {
+   "r": "normal",
+   "tier": "A"
+  },
+  "N2_iid_rr2": {
+   "r": "rr2",
+   "tier": "A"
+  },
+  "T1_tradeAR0.1": {
+   "r": "rr2",
+   "phi_trade": 0.1,
+   "tier": "A"
+  },
+  "T2_tradeAR0.3": {
+   "r": "rr2",
+   "phi_trade": 0.3,
+   "tier": "B"
+  },
+  "T3_tradeAR0.7": {
+   "r": "rr2",
+   "phi_trade": 0.7,
+   "tier": "C"
+  },
+  "M1_monthEff0.5_iid": {
+   "r": "rr2",
+   "month_effect": 0.5,
+   "tier": "A"
+  },
+  "M4_monthEff0.25_AR0.8": {
+   "r": "rr2",
+   "month_effect": 0.25,
+   "phi_month": 0.8,
+   "tier": "B"
+  },
+  "M2_monthEff0.5_AR0.5": {
+   "r": "rr2",
+   "month_effect": 0.5,
+   "phi_month": 0.5,
+   "tier": "B"
+  },
+  "M3_monthEff0.5_AR0.8": {
+   "r": "rr2",
+   "month_effect": 0.5,
+   "phi_month": 0.8,
+   "tier": "C"
+  },
+  "V1_vol0.5_iid": {
+   "r": "rr2",
+   "vol_sd": 0.5,
+   "tier": "A"
+  },
+  "V2_vol0.5_AR0.8": {
+   "r": "rr2",
+   "vol_sd": 0.5,
+   "phi_vol": 0.8,
+   "tier": "B"
+  },
+  "V3_vol1.0_iid": {
+   "r": "rr2",
+   "vol_sd": 1.0,
+   "tier": "B"
+  },
+  "S1_streak0.9": {
+   "r": "rr2",
+   "streaks": 0.9,
+   "tier": "B"
+  }
+ },
+ "nb": 5000,
+ "kv_reference": "1e6 iid N(0,1) draws per K, seed 424242"
+}

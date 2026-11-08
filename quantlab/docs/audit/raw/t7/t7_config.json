@@ -1,0 +1,74 @@
+{
+ "seed0": 20261121,
+ "reps": 60000,
+ "Kc": [
+  24,
+  60
+ ],
+ "lam": 5.0,
+ "scenarios": {
+  "G1_dense_equal": {
+   "p_act": 1.0,
+   "counts": "equal",
+   "rho": 0.0,
+   "sig": 0.0
+  },
+  "G2_p0.7_poisson_iid": {
+   "p_act": 0.7,
+   "counts": "poisson",
+   "rho": 0.0,
+   "sig": 0.5
+  },
+  "G3_p0.7_poisson_AR0.8": {
+   "p_act": 0.7,
+   "counts": "poisson",
+   "rho": 0.8,
+   "sig": 0.5
+  },
+  "G4_p0.4_poisson_AR0.8": {
+   "p_act": 0.4,
+   "counts": "poisson",
+   "rho": 0.8,
+   "sig": 0.5
+  },
+  "G5_p0.4_poisson_AR0.5": {
+   "p_act": 0.4,
+   "counts": "poisson",
+   "rho": 0.5,
+   "sig": 0.5
+  },
+  "G6_dense_negbin_iid": {
+   "p_act": 1.0,
+   "counts": "negbin",
+   "rho": 0.0,
+   "sig": 0.5
+  },
+  "G7_dense_negbin_AR0.8": {
+   "p_act": 1.0,
+   "counts": "negbin",
+   "rho": 0.8,
+   "sig": 0.5
+  },
+  "G8_markov0.7_AR0.8": {
+   "p_act": 0.7,
+   "counts": "poisson",
+   "rho": 0.8,
+   "sig": 0.5,
+   "markov": 0.85
+  },
+  "G9_markov0.5_AR0.8": {
+   "p_act": 0.5,
+   "counts": "poisson",
+   "rho": 0.8,
+   "sig": 0.5,
+   "markov": 0.85
+  },
+  "G10_p0.4_noeffect_poisson": {
+   "p_act": 0.4,
+   "counts": "poisson",
+   "rho": 0.0,
+   "sig": 0.0
+  }
+ },
+ "nb": 5000
+}
