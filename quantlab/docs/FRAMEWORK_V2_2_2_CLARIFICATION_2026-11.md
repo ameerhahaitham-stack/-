@@ -260,7 +260,7 @@ They stated that the number of effectively distinct shifts is about T / ℓ, wit
 
 ### 4.2 Setup
 
-The data are a series y_1, …, y_T (returns or the price path), treated as lying on a circle. The signal vector s is fixed (exogenous). For a shift k, s^(k)_t = s_(t−k mod T). The statistic is S_k = f(s^(k), y), for example the mean outcome at signalled bars, with each outcome computed from the path with the declared exit rule on the wrapped path. The observed value is S_0. The counting p-value is
+The data are a series y_1, …, y_T (returns or the price path), treated as lying on a circle. The signal vector s is fixed (exogenous). For a shift k, the shifted signal is `s(k)[t] = s[(t − k) mod T]`. The statistic is S_k = f(s(k), y), for example the mean outcome at signalled bars, with each outcome computed from the path with the declared exit rule on the wrapped path. The observed value is S_0. The counting p-value is
 
 p = (1 + #{k in 1..T−1 : S_k ≥ S_0}) / T.
 
